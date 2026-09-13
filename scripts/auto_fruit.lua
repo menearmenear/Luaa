@@ -22,7 +22,8 @@ local cfg = {
   speed     = 6.0,    -- movement speed (studs/sec)
 }
 
-local Stat = { beli = 0, kills = 0, fruits = 0, sold = 0, left = 12, spawns = 0 }
+local Stat = { beli = 0, kills = 0, fruits = 0, sold = 0, left = 12, spawns = 0, pickups = 0, elapsed = 0 }
+local lastEvent = "farm standing by"
 local target, mode = nil, "idle"
 local px, pz = 0, 0
 local nextSell = 12
@@ -37,10 +38,14 @@ local function hud()
   sim.setGui("beli",    { text = "Beli $" .. Stat.beli, x = 0.64, y = 0.02, w = 0.34, h = 0.06, color = "#14261a", textColor = "#ffd54f" })
   sim.setGui("kills",   { text = "kills " .. Stat.kills, x = 0.64, y = 0.09, w = 0.16, h = 0.06, color = "#141c2e", textColor = "#e57373" })
   sim.setGui("mobs",    { text = "mobs " .. #sim.getMobs(), x = 0.82, y = 0.09, w = 0.16, h = 0.06, color = "#141c2e", textColor = "#b6c2ff" })
-  sim.setGui("farm",    { text = "AutoFarm " .. (cfg.autoFarm and "ON" or "OFF"), x = 0.02, y = 0.90, w = 0.19, h = 0.08, color = cfg.autoFarm and "#0f3d2e" or "#3d2020", textColor = "#7CFC9A" })
-  sim.setGui("sell",    { text = "AutoSell " .. (cfg.autoSell and "ON" or "OFF"), x = 0.23, y = 0.90, w = 0.19, h = 0.08, color = cfg.autoSell and "#0f3d2e" or "#3d2020", textColor = "#7CFC9A" })
-  sim.setGui("buyb",    { text = "Auto-Buy blade", x = 0.44, y = 0.90, w = 0.20, h = 0.08, color = cfg.autoBuy and "#263c8a" or "#3d2020", textColor = "#ffffff" })
-  sim.setGui("nextsell",{ text = "SELL in " .. Stat.left .. "s", x = 0.67, y = 0.90, w = 0.16, h = 0.08, color = "#263c8a", textColor = "#ffffff" })
+  sim.setGui("farm",    { text = "AutoFarm " .. (cfg.autoFarm and "ON" or "OFF"), x = 0.02, y = 0.86, w = 0.19, h = 0.08, color = cfg.autoFarm and "#0f3d2e" or "#3d2020", textColor = "#7CFC9A" })
+  sim.setGui("sell",    { text = "AutoSell " .. (cfg.autoSell and "ON" or "OFF"), x = 0.23, y = 0.86, w = 0.19, h = 0.08, color = cfg.autoSell and "#0f3d2e" or "#3d2020", textColor = "#7CFC9A" })
+  sim.setGui("buyb",    { text = "Auto-Buy blade", x = 0.44, y = 0.86, w = 0.20, h = 0.08, color = cfg.autoBuy and "#263c8a" or "#3d2020", textColor = "#ffffff" })
+  sim.setGui("nextsell",{ text = "SELL in " .. Stat.left .. "s", x = 0.67, y = 0.86, w = 0.16, h = 0.08, color = "#263c8a", textColor = "#ffffff" })
+  sim.setGui("stats",   { text = string.format("run %ds  |  spawned %d  |  fruits %d  |  sold %d  |  picked %d",
+                            math.floor(Stat.elapsed), Stat.spawns, Stat.fruits, Stat.sold, Stat.pickups),
+                          x = 0.02, y = 0.95, w = 0.60, h = 0.05, color = "#101418", textColor = "#8aa4c0" })
+  sim.setGui("event",   { text = "last: " .. lastEvent, x = 0.64, y = 0.95, w = 0.34, h = 0.05, color = "#101418", textColor = "#ffd54f" })
 end
 hud()
 
@@ -64,6 +69,8 @@ task.spawn(function()
       Stat.sold = Stat.sold + Stat.fruits
       Stat.left = cfg.sellEvery
       print(("[AutoSell] sold %d fruits -> +$%d Beli (total $%d)"):format(Stat.fruits, payout, Stat.beli))
+      lastEvent = ("sold %d fruits +$%d"):format(Stat.fruits, payout)
+      hud()
     end
   end
 end)
@@ -72,12 +79,16 @@ end)
 RunService.Heartbeat:Connect(function(dt)
   dt = dt or 0.016
   px, pz = sim.getPlayer()
+  Stat.elapsed = Stat.elapsed + dt
+  hud()
 
   -- AutoBuy: spend Beli before selling gets ahead of the shop
   if cfg.autoBuy and Stat.beli >= cfg.bladeCost then
     Stat.beli = Stat.beli - cfg.bladeCost
     cfg.damage = cfg.damage + 4
     print(("[AutoBuy] blade -> dmg %d (-$%d)"):format(cfg.damage, cfg.bladeCost))
+    lastEvent = ("blade upgraded -> dmg %d"):format(cfg.damage)
+    hud()
   end
 
   -- AutoFarm: pick the nearest mob, then fight it
@@ -105,6 +116,7 @@ RunService.Heartbeat:Connect(function(dt)
         target, mode = nil, "idle"
         sim.addCoin(kill.x, kill.z)         -- fruit drop on the ground
         print(("[KILL] %s -> %d kills, %d fruits"):format(kill.name or "mob", Stat.kills, Stat.fruits))
+        lastEvent = ("killed %s (dmg %d)"):format(kill.name or "mob", cfg.damage)
         for i, m in ipairs(sim.getMobs()) do if m == kill then sim.removeMob(i) break end end
         hud()
       end
@@ -117,7 +129,8 @@ RunService.Heartbeat:Connect(function(dt)
     if c and math.abs(c.x - px) < 0.8 and math.abs(c.z - pz) < 0.8 then
       sim.removeCoin(i)
       Stat.beli = Stat.beli + 5
-      hud()
+      Stat.pickups = Stat.pickups + 1
+      lastEvent = ("picked up fruit drop +$5")
     end
   end
 end)
@@ -130,6 +143,8 @@ task.spawn(function()
       Stat.spawns = Stat.spawns + 1
       sim.addMob(math.random(-10, 10), math.random(-6, 6),
         8 + math.min(20, math.floor(Stat.beli / 50) * 2), "#e57373", "FruitLooter")
+      lastEvent = ("spawned a FruitLooter (hp scaled to $%d)"):format(Stat.beli)
+      hud()
     end
   end
 end)
@@ -137,4 +152,5 @@ end)
 print("== AUTO FRUIT ==")
 print("AutoFarm/AutoSell/Auto-Buy all ON. Watch it play itself —")
 print("that heartbeat loop is the same one big auto scripts use.")
+print("HUD shows live stats; the bottom bar is the action ticker.")
 hud()

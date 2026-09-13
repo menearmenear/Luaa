@@ -702,6 +702,7 @@ hud()</textarea></div>
   <div class="kicker">Lesson 16 · Project</div>
   <h1>Click Tween — runnable test script</h1>
   <p>This is the same <code>scripts/test.lua</code> you keep on your phone, as a lesson. Tap the canvas and you tween there with precision (error 0.000). Reading any real script is just answering four questions:</p>
+  <p><b>Hit Run — the canvas shows up right away.</b> This script never calls <code>task.wait</code>, so the sim has no coroutine to schedule; the engine still keeps a Heartbeat pump running and shows the world the moment the script says <code>SandboxSim.show()</code>. You always get a display to watch, with live position / target / ETA readouts below the buttons.</p>
   <h2>1 · What does it build? — the GUI</h2>
   <p><code>SandboxSim.setGui(id, {text=…, x, y, w, h, color})</code> draws a button on the HUD. <code>SandboxSim.on("gui", function(id) … end)</code> is what fires when the button is actually pressed on screen. That pair — <b>draw + handle</b> — is the whole GUI library. The script keeps a <code>cfg</code> table (enabled / speed / exact / ease) and re-draws the buttons every time <code>refreshAll()</code> runs, so the HUD reflects the config.</p>
   <h2>2 · What triggers it? — click to action</h2>
@@ -723,6 +724,7 @@ hud()</textarea></div>
   <div class="kicker">Lesson 17 · Your machine</div>
   <h1>Your scripts, from your phone</h1>
   <p>Scripts you drop into <code>~/Luaa/scripts/</code> (or copy from <code>~/storage/downloads/</code>) show up in the box below. Pick one, load it, hit <b>Run</b> — same sandbox, same canvas, same GUI. Or hit <b>Explain</b> to get it dissected: functions, loops, connected events and the services it touches, with line numbers.</p>
+  <p>Anything visual renders automatically: the script just calls <code>SandboxSim.show()</code> and the canvas + HUD appear under it, living on a Heartbeat like a real executor does. The sim pauses itself the moment nothing is visible, so idle run loops cost nothing.</p>
   <div class="bar2">
     <select id="scripts-pick"></select>
     <button id="scripts-load">Load</button>

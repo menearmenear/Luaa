@@ -35,8 +35,20 @@ local tween = {
 }
 local statusText = "click the world to tween there"
 local statusLbl = nil
+local infoLbl = nil
 
 local function fmt(n, d) return ("%." .. (d or 1) .. "f"):format(n) end
+
+local function updateInfo()
+  if not infoLbl then return end
+  local px, pz = SandboxSim.getPlayer()
+  local dist = tween.moving and math.sqrt((tween.tx - px) ^ 2 + (tween.tz - pz) ^ 2) or 0
+  local eta = tween.moving and math.max(0, tween.t1 - tween.elapsed) or 0
+  local prog = tween.moving and math.min(100, tween.elapsed / tween.t1 * 100) or 0
+  infoLbl.text = ("pos (%.1f, %.1f)  ->  target (%.1f, %.1f)  |  %.1f studs"):format(px, pz, tween.tx, tween.tz, dist)
+    .. (tween.moving and ("  |  ETA %.1fs  |  p=%.0f%%") :format(eta, prog) or "  |  idle")
+    .. ("  |  ease %s  |  %d studs/s"):format(cfg.ease, cfg.speed)
+end
 
 local function getRoot()
   local p = IS_SANDBOX and nil or (game and game.Players.LocalPlayer)
@@ -80,6 +92,7 @@ local function startTween(x, z)
 end
 
 local function onHeartbeat(dt)
+  updateInfo()
   if not tween.moving then return end
   tween.elapsed = tween.elapsed + dt
   local p = math.min(tween.elapsed / tween.t1, 1)
@@ -160,10 +173,14 @@ if IS_SANDBOX then
   end)
 
   SandboxSim.setGui("panel", { text = "Click Tween — precision test", x = 0.02, y = 0.0, w = 0.42, h = 0.34, color = "#0f1b2e", textColor = "#8ab6e8" })
-  SandboxSim.setGui("tip",   { text = "click the world to tween", x = 0.02, y = 0.35, w = 0.42, h = 0.06, color = "#17324d", textColor = "#7b8ba3" })
+  SandboxSim.setGui("tip",   { text = "click the world to tween — live readout below", x = 0.02, y = 0.35, w = 0.42, h = 0.06, color = "#17324d", textColor = "#7b8ba3" })
   local st = { text = "", x = 0.02, y = 0.42, w = 0.42, h = 0.06, color = "#17324d", textColor = "#4fc3f7" }
   SandboxSim.setGui("status", st)
   statusLbl = st
+  local info = { text = "", x = 0.02, y = 0.49, w = 0.60, h = 0.05, color = "#101418", textColor = "#8aa4c0" }
+  SandboxSim.setGui("info", info)
+  infoLbl = info
+  updateInfo()
   refreshAll()
   SandboxSim.show()
 elseif game and game.Players.LocalPlayer and game.Players.LocalPlayer.PlayerGui then

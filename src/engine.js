@@ -76,6 +76,7 @@ function stopSims() { if (simTimer) { clearInterval(simTimer); simTimer = null; 
 
 function resumeRef(ref, TL, nargs, st, finishCb) {
   var ctx = ctxByState.get(st);
+  var prevActive = activeCtx;
   activeCtx = ctx;
   runStart = now();
   setHook(TL);
@@ -112,7 +113,7 @@ function resumeRef(ref, TL, nargs, st, finishCb) {
     }
     if (finishCb) finishCb();
   }
-  activeCtx = null;
+  activeCtx = prevActive;
 }
 
 function tickAll() {
@@ -203,8 +204,12 @@ function runChunkOnState(L, code, outEl, statusEl, keepOutput) {
   ctx.out = outEl;
   ctx.statusEl = statusEl || null;
   ctx.keep = !!keepOutput;
+  // every run gets a sandbox canvas (even the console), so any script that
+  // calls SandboxSim.show() is visible. simTick only displays when the script
+  // opted in, but it must be running to notice.
+  ensureGview(ctx);
+  startSims();
   if (!keepOutput) {
-    ensureGview(ctx);
     outEl.classList.remove("err");
     outEl.classList.add("show");
     outEl.textContent = "";
@@ -311,17 +316,70 @@ function ensureGview(ctx) {
   return wrap;
 }
 
+function luaTableToJS(L, idx, seen) {
+  var t = lua.lua_type(L, idx);
+  if (t === lua.LUA_TNIL) return null;
+  if (t === lua.LUA_TBOOLEAN) return lua.lua_toboolean(L, idx);
+  if (t === lua.LUA_TNUMBER) return lua.lua_tonumber(L, idx);
+  if (t === lua.LUA_TSTRING) return lua.lua_tojsstring(L, idx);
+  if (t !== lua.LUA_TTABLE) return null;
+  var ai = idx >= 0 ? idx : lua.lua_gettop(L) + idx + 1;
+  var ptr;
+  try { ptr = lua.lua_topointer(L, ai); } catch (e) { ptr = null; }
+  if (ptr !== null && seen.has(ptr)) return null;
+  if (ptr !== null) seen.add(ptr);
+  var count = 0, maxk = 0;
+  lua.lua_pushnil(L);
+  while (lua.lua_next(L, ai) !== 0) {
+    count++;
+    if (lua.lua_type(L, -2) === lua.LUA_TNUMBER) {
+      var nk = lua.lua_tonumber(L, -2);
+      if (nk > maxk) maxk = nk;
+    }
+    lua.lua_pop(L, 1);
+  }
+  lua.lua_settop(L, ai);
+  var arr = count > 0 && Math.floor(maxk) === maxk && maxk === count;
+  var out = arr ? [] : {};
+  lua.lua_pushnil(L);
+  while (lua.lua_next(L, ai) !== 0) {
+    var kt = lua.lua_type(L, -2);
+    var key = null;
+    if (kt === lua.LUA_TNUMBER) key = lua.lua_tonumber(L, -2);
+    else if (kt === lua.LUA_TSTRING) key = lua.lua_tojsstring(L, -2);
+    if (key !== null) {
+      var v = luaTableToJS(L, -1, seen);
+      if (arr && typeof key === "number" && key >= 1 && Math.floor(key) === key) out[key - 1] = v;
+      else if (!arr) out[key] = v;
+    }
+    lua.lua_pop(L, 1);
+  }
+  lua.lua_settop(L, ai);
+  if (arr) out.length = maxk;
+  return out;
+}
+
 function pollWorld(ctx) {
+  pollLog.calls++;
   try {
     activeCtx = ctx;
-    lua.lua_getglobal(ctx.L, "_frameJSON");
+    lua.lua_getglobal(ctx.L, "_frameTable");
     var rc = lua.lua_pcallk(ctx.L, 0, 1, 0, 0, undefined);
-    if (rc !== 0) { lua.lua_settop(ctx.L, 0); return ctx.world || null; }
-    var s = lua.lua_tojsstring(ctx.L, -1);
+    if (rc !== 0) {
+      pollLog.luaErr = luaErrStr(ctx.L, -1);
+      lua.lua_settop(ctx.L, 0);
+      return ctx.world || null;
+    }
+    var w;
+    if (lua.lua_type(ctx.L, -1) === lua.LUA_TTABLE) w = luaTableToJS(ctx.L, -1, new Set());
     lua.lua_settop(ctx.L, 0);
-    if (!s) return null;
-    return JSON.parse(s);
+    if (!w) { pollLog.lastJson = "(no world)"; return ctx.world || null; }
+    pollLog.jsonErr = null;
+    pollLog.lastVisible = !!(w && w.visible);
+    pollLog.lastJson = (JSON.stringify(w) || "").slice(0, 300);
+    return w;
   } catch (e) {
+    pollLog.jsonErr = (e && e.message) || String(e);
     return ctx.world || null;
   } finally {
     activeCtx = null;
@@ -375,6 +433,7 @@ function emitEvent(ctx, type, a, b) {
 }
 
 var lastSimTs = now();
+var pollLog = { calls: 0, luaErr: null, jsonErr: null, lastVisible: false, lastJson: null };
 
 function simTick() {
   var t = now();
@@ -382,15 +441,20 @@ function simTick() {
   lastSimTs = t;
   var any = false;
 
+  // Drive the sim for every registered state: fire Heartbeat when the script
+  // has a live coroutine OR its world is visible (event-only scripts with no
+  // task.wait loop still animate), poll the world, and render when the Lua
+  // side opted in via SandboxSim.show().
   ctxByState.forEach(function (ctx, L) {
     if (!ctx.gview) return;
     var live = pendingFor(L);
-    var show = ctx.world && ctx.world.visible;
-    if (!live && !show) return;
-    any = true;
-    if (live) fireHeartbeat(L, dt);
     var world = pollWorld(ctx);
-    if (world) renderWorld(ctx, world);
+    var visible = !!(world && world.visible);
+    if (!live && !visible) return;
+    any = true;
+    if (live || visible) fireHeartbeat(L, dt);
+    world = pollWorld(ctx); // render the post-heartbeat state
+    if (world && world.visible) renderWorld(ctx, world);
   });
 
   if (!any) stopSims();
@@ -863,5 +927,6 @@ window.__LP__ = {
   emitEvent: emitEvent,
   ensureGview: ensureGview,
   highlight: highlight,
+  pollLog: pollLog,
 };
 })();

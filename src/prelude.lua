@@ -715,6 +715,9 @@ function _dispatchEvent(t, a, b)
   local f = simListeners[t]
   if f then return f(a, b) end
 end
+function _frameTable()
+  return simWorld
+end
 function _frameJSON()
   return HttpService:JSONEncode(simWorld)
 end
