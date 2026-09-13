@@ -225,13 +225,32 @@ elseif game and game.Players.LocalPlayer and game.Players.LocalPlayer.PlayerGui 
   statusLbl.TextXAlignment = Enum.TextXAlignment.Left
   statusLbl.Parent = frame
 
-  -- click -> tween
+  -- click/tap -> tween: mouse on desktop, touch screenPoint ray on mobile
   local plr = game.Players.LocalPlayer
+  local function tapPoint(scrX, scrY)
+    local cam, root = workspace and workspace.CurrentCamera, getRoot()
+    if not (cam and cam.ViewportPointToRay and root) then return nil end
+    local ray = cam:ViewportPointToRay(scrX, scrY)
+    if ray.Direction.Y == 0 then return nil end
+    local t = (root.Position.Y - ray.Origin.Y) / ray.Direction.Y
+    if t < 0 then return nil end
+    return ray.Origin + ray.Direction * t
+  end
   local mouse = plr.GetMouse and plr:GetMouse()
   if mouse then
     mouse.Button1Down:Connect(function()
-      local hit, root = mouse.Hit, getRoot()
-      if hit and root then startTween(hit.Position.X, hit.Position.Z) end
+      local hit = mouse.Hit
+      if hit then startTween(hit.Position.X, hit.Position.Z) end
+    end)
+  end
+  local uis
+  local okU = pcall(function() uis = game:GetService("UserInputService") end)
+  if okU and uis and uis.InputBegan then
+    uis.InputBegan:Connect(function(input)
+      if input and input.UserInputType == Enum.UserInputType.Touch then
+        local pt = tapPoint(input.Position.X, input.Position.Y)
+        if pt then startTween(pt.X, pt.Z) end
+      end
     end)
   end
 end
