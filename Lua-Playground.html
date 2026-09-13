@@ -79,6 +79,19 @@ a{color:var(--accent)}
   white-space:pre-wrap;word-break:break-word;min-height:20px;color:#c8f1d9;display:none}
 .out.show{display:block}
 .out.err{color:#fda4af}
+.bar2{display:flex;align-items:center;gap:8px;padding:8px 0;flex-wrap:wrap}
+.bar2 select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px;flex:1;min-width:180px}
+.bar2 button{font-family:var(--sans);font-size:12px;font-weight:800;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;color:#fff;background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+.bar2 button:hover{filter:brightness(1.15)}
+.explainwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:14px 0;padding:14px 16px}
+.explainwrap h4{margin:14px 0 6px;color:#ffe082;font-size:14px}
+.explainwrap h3{margin:0 0 8px;color:#fff;font-size:16px}
+.echips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.echips span{background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-size:12px;color:#cbd5e1}
+.eclist{margin:4px 0 10px;padding-left:20px;color:var(--txt)}
+.eclist li{margin:3px 0}
+.explaincode{background:#0a0d15;border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:#cbd5e1;white-space:pre;max-height:360px}
+.explaincode .elno{display:inline-block;width:34px;color:#51617b;user-select:none}
 .codewrap{position:relative}
 .hl{position:absolute;inset:0;overflow:hidden;padding:12px;pointer-events:none;font-family:var(--mono);
   font-size:13.5px;line-height:1.55;white-space:pre;color:#cbd5e1}
@@ -178,6 +191,8 @@ Copyright © 1994–2017 Lua.org, PUC-Rio.
   <button class="chap" data-target="remotes"><span class="n">13</span> Remotes + anti-cheat</button>
   <button class="chap" data-target="guilib"><span class="n">14</span> Project: GUI library</button>
   <button class="chap" data-target="animesim"><span class="n">15</span> Anime Sim (runnable)</button>
+  <button class="chap" data-target="tween"><span class="n">16</span> Click Tween (test)</button>
+  <button class="chap" data-target="scripts"><span class="n">17</span> Your scripts</button>
 </nav>
 
 <div class="main">
@@ -857,6 +872,323 @@ hud()</textarea></div>
 
 </div>
 
+<!-- ================= LESSON 16 ================= -->
+<section class="lesson" id="tween">
+  <div class="kicker">Lesson 16 · Project</div>
+  <h1>Click Tween — runnable test script</h1>
+  <p>This is the same <code>scripts/test.lua</code> you keep on your phone, as a lesson. Tap the canvas and you tween there with precision (error 0.000). Reading any real script is just answering four questions:</p>
+  <h2>1 · What does it build? — the GUI</h2>
+  <p><code>SandboxSim.setGui(id, {text=…, x, y, w, h, color})</code> draws a button on the HUD. <code>SandboxSim.on("gui", function(id) … end)</code> is what fires when the button is actually pressed on screen. That pair — <b>draw + handle</b> — is the whole GUI library. The script keeps a <code>cfg</code> table (enabled / speed / exact / ease) and re-draws the buttons every time <code>refreshAll()</code> runs, so the HUD reflects the config.</p>
+  <h2>2 · What triggers it? — click to action</h2>
+  <p><code>SandboxSim.on("click", function(x, z) startTween(x, z) end)</code>. The canvas reports the world point you tapped (<code>x</code>, <code>z</code>) — no pixels, actual studs. <code>startTween</code> reads where you <i>are</i> (<code>SandboxSim.getPlayer()</code>), stores the target, and computes <code>t1 = distance / speed</code>. Tap again mid-flight and it re-targets from wherever it is.</p>
+  <h2>3 · How does it move? — the Heartbeat loop</h2>
+  <p><code>RunService.Heartbeat:Connect(function(dt) … end)</code> runs once per frame; <code>dt</code> is the seconds that frame took. The script turns that into <code>elapsed = elapsed + dt</code> then <code>p = elapsed / t1</code> — a 0→1 progress. <code>easeFn(p)</code> shapes the curve, and each frame the player is set to <code>start + (target - start) * e</code>. That lerp-on-heartbeat is the animation engine every game uses.</p>
+  <h2>4 · When does it stop? — precision</h2>
+  <p>At <code>p &gt;= 1</code> it snaps exactly to the clicked point, removes the target coin, and prints <code>error 0.000</code>. Not "close enough" — the exact click. That "snap at the end" is what makes tweens feel precise instead of drifting.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">tween.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">--[[
+  Click Tween — precision test script
+  ------------------------------------------------------------
+  Click anywhere and your character tweens there with an exact
+  landing (error 0.000). No game-specific assumptions, so it
+  works in the Playground sandbox (SandboxSim) and on any game
+  in a real executor (mouse.Button1Down + TweenService).
+
+  GUI buttons:
+    ENABLED  toggle tweening on/off      (also press E on the keyboard)
+    EXACT    exact landing vs smooth glide
+    EASE     cycle easing style
+    - / +    tween speed in studs/sec
+]]
+
+local EASE = {
+  Linear     = function(t) return t end,
+  Quad       = function(t) return t &lt; 0.5 and 2 * t * t or 1 - ((-2 * t + 2) ^ 2) / 2 end,
+  Cubic      = function(t) return t &lt; 0.5 and 4 * t ^ 3 or 1 - ((-2 * t + 2) ^ 3) / 2 end,
+  Quart      = function(t) return t &lt; 0.5 and 8 * t ^ 4 or 1 - ((-2 * t + 2) ^ 4) / 2 end,
+  OutExpo    = function(t) return t &gt;= 1 and 1 or 1 - 2 ^ (-10 * t) end,
+  OutElastic = function(t)
+    if t == 0 or t == 1 then return t end
+    return 2 ^ (-10 * t) * math.sin((t * 10 - 0.75) * ((2 * math.pi) / 3)) + 1
+  end,
+}
+
+local IS_SANDBOX = type(SandboxSim) == "table"
+
+local cfg = { enabled = true, speed = 12, exact = true, ease = "OutExpo" }
+local tween = {
+  moving = false, elapsed = 0, t1 = 1,
+  sx = 0, sz = 0, tx = 0, tz = 0,
+  dist = 0, easeFn = EASE.Linear,
+}
+local statusText = "click the world to tween there"
+local statusLbl = nil
+
+local function fmt(n, d) return ("%." .. (d or 1) .. "f"):format(n) end
+
+local function getRoot()
+  local p = IS_SANDBOX and nil or (game and game.Players.LocalPlayer)
+  local c = p and p.Character
+  if not c then return nil end
+  return c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso")
+end
+
+local function startTween(x, z)
+  if not cfg.enabled then statusText = "disabled — hit ENABLED" return end
+  tween.elapsed = 0
+  if IS_SANDBOX then
+    tween.sx, tween.sz = SandboxSim.getPlayer()
+  else
+    local root = getRoot()
+    if not root then return end
+    tween.sx, tween.sz = root.Position.X, root.Position.Z
+  end
+  tween.tx, tween.tz = x, z
+  tween.dist = math.sqrt((x - tween.sx) ^ 2 + (z - tween.sz) ^ 2)
+  if tween.dist &lt; 0.01 then return end
+  tween.t1 = math.max(0.10, tween.dist / cfg.speed)
+  tween.easeFn = EASE[cfg.ease] or EASE.Linear
+  tween.moving = true
+  if IS_SANDBOX then
+    SandboxSim.addCoin(x, z)
+  else
+    local root = getRoot()
+    if root and root:FindFirstChild("Humanoid") then
+      root:FindFirstChild("Humanoid").AutoRotate = false
+    end
+    local ts, ok = nil, pcall(function() ts = game:GetService("TweenService") end)
+    if ok and ts and ts.Create then
+      local style = cfg.exact and Enum.EasingStyle[cfg.ease] or Enum.EasingStyle.Linear
+      local dir = cfg.exact and Enum.EasingDirection.Out or Enum.EasingDirection.InOut
+      local goal = { CFrame = CFrame.new(Vector3.new(x, root.Position.Y, z)) }
+      ts:Create(root, TweenInfo.new(tween.t1, style, dir), goal):Play()
+    end
+  end
+  statusText = ("-&gt; %.1f, %.1f  (%s, %d sp)"):format(x, z, cfg.ease, cfg.speed)
+end
+
+local function onHeartbeat(dt)
+  if not tween.moving then return end
+  tween.elapsed = tween.elapsed + dt
+  local p = math.min(tween.elapsed / tween.t1, 1)
+  local e = tween.easeFn(p)
+  local x = tween.sx + (tween.tx - tween.sx) * e
+  local z = tween.sz + (tween.tz - tween.sz) * e
+  if IS_SANDBOX then
+    if p &gt;= 1 then
+      SandboxSim.setPlayer(tween.tx, tween.tz)
+      tween.moving = false
+      SandboxSim.removeCoin(1)
+      statusText = ("landed (%.1f, %.1f) — error 0.000"):format(tween.tx, tween.tz)
+      print(("[ClickTween] landed (%.2f, %.2f) in %s | %s studs — error 0.000")
+        :format(tween.tx, tween.tz, fmt(tween.elapsed, 2), fmt(tween.dist, 1)))
+      if statusLbl then statusLbl.text = statusText end
+      return
+    end
+    SandboxSim.setPlayer(x, z, math.deg(math.atan2(tween.tz - tween.sz, tween.tx - tween.sx)))
+    statusText = ("%.0f%% — (%.2f, %.2f)"):format(p * 100, x, z)
+  else
+    if not tween.tl then
+      -- fallback manual lerp when TweenService is missing
+      local root = getRoot()
+      if root then root.CFrame = CFrame.new(Vector3.new(x, root.Position.Y, z)) end
+    end
+    if p &gt;= 1 then
+      tween.moving = false
+      print(("[ClickTween] landed (%.2f, %.2f)"):format(tween.tx, tween.tz))
+    end
+  end
+  if statusLbl then statusLbl.text = statusText end
+end
+RunService.Heartbeat:Connect(onHeartbeat)
+
+local function refreshAll()
+  if not IS_SANDBOX then return end
+  local function btn(id, text, active)
+    SandboxSim.setGui(id, {
+      id = id, text = text,
+      x = cfg.btn[id].x, y = cfg.btn[id].y, w = cfg.btn[id].w, h = cfg.btn[id].h,
+      color = active and "#22d3ee" or "#334155",
+      textColor = "#eaf6ff",
+    })
+  end
+  btn("ENABLED", "ENABLED  " .. (cfg.enabled and "ON" or "OFF"), cfg.enabled)
+  btn("EXACT", cfg.exact and "EXACT" or "SMOOTH", cfg.exact)
+  btn("EASE", "EASE: " .. cfg.ease, false)
+  btn("SPEEDM", "-", false)
+  btn("SPEEDP", "+", false)
+  btn("SPEEDVAL", "SPD " .. cfg.speed, false)
+end
+
+if IS_SANDBOX then
+  cfg.btn = {
+    ENABLED  = { x = 0.02, y = 0.03, w = 0.19, h = 0.08 },
+    EXACT    = { x = 0.23, y = 0.03, w = 0.19, h = 0.08 },
+    EASE     = { x = 0.02, y = 0.13, w = 0.34, h = 0.08 },
+    SPEEDM   = { x = 0.02, y = 0.23, w = 0.10, h = 0.08 },
+    SPEEDVAL = { x = 0.14, y = 0.23, w = 0.14, h = 0.08 },
+    SPEEDP   = { x = 0.30, y = 0.23, w = 0.10, h = 0.08 },
+  }
+
+  SandboxSim.setPlayerColor("#22d3ee")
+  SandboxSim.setPlayerName("ClickTween")
+
+  SandboxSim.on("click", function(x, z) startTween(x, z) end)
+  SandboxSim.on("gui", function(id)
+    if id == "ENABLED" then cfg.enabled = not cfg.enabled
+    elseif id == "EXACT" then cfg.exact = not cfg.exact
+    elseif id == "EASE" then
+      local keys = { "Linear", "OutExpo", "OutElastic", "Quad", "Cubic", "Quart" }
+      local i = table.find(keys, cfg.ease)
+      cfg.ease = keys[((i or 0) % #keys) + 1]
+    elseif id == "SPEEDM" then cfg.speed = math.max(3, cfg.speed - 3)
+    elseif id == "SPEEDP" then cfg.speed = math.min(40, cfg.speed + 3)
+    end
+    refreshAll()
+  end)
+
+  SandboxSim.setGui("panel", { text = "Click Tween — precision test", x = 0.02, y = 0.0, w = 0.42, h = 0.34, color = "#0f1b2e", textColor = "#8ab6e8" })
+  SandboxSim.setGui("tip",   { text = "click the world to tween", x = 0.02, y = 0.35, w = 0.42, h = 0.06, color = "#17324d", textColor = "#7b8ba3" })
+  local st = { text = "", x = 0.02, y = 0.42, w = 0.42, h = 0.06, color = "#17324d", textColor = "#4fc3f7" }
+  SandboxSim.setGui("status", st)
+  statusLbl = st
+  refreshAll()
+  SandboxSim.show()
+elseif game and game.Players.LocalPlayer and game.Players.LocalPlayer.PlayerGui then
+  -- real Roblox GUI (standard services only -&gt; any game)
+  local sg = Instance.new("ScreenGui")
+  sg.Name = "ClickTween"
+  sg.ResetOnSpawn = false
+  sg.Parent = game.Players.LocalPlayer.PlayerGui
+
+  local frame = Instance.new("Frame")
+  frame.Size = UDim2.new(0, 220, 0, 150)
+  frame.Position = UDim2.new(0, 10, 1, -160)
+  frame.BackgroundColor3 = Color3.fromRGB(15, 27, 46)
+  frame.BackgroundTransparency = 0.1
+  frame.BorderSizePixel = 0
+  frame.Parent = sg
+  local corner = Instance.new("UICorner")
+  corner.CornerRadius = UDim.new(0, 8)
+  corner.Parent = frame
+
+  local title = Instance.new("TextLabel")
+  title.Size = UDim2.new(1, 0, 0, 22)
+  title.BackgroundTransparency = 1
+  title.Text = "Click Tween — precision test"
+  title.TextColor3 = Color3.fromRGB(138, 182, 232)
+  title.Font = Enum.Font.GothamBold
+  title.TextSize = 13
+  title.Parent = frame
+
+  local function makeBtn(name, posY, text, onClk)
+    local b = Instance.new("TextButton")
+    b.Name = name
+    b.Size = UDim2.new(0, 100, 0, 26)
+    b.Position = UDim2.new(0, 8, 0, posY)
+    b.BackgroundColor3 = Color3.fromRGB(51, 65, 85)
+    b.BorderSizePixel = 0
+    b.Text = text
+    b.TextColor3 = Color3.fromRGB(234, 246, 255)
+    b.Font = Enum.Font.Gotham
+    b.TextSize = 12
+    b.Parent = frame
+    b.MouseButton1Click:Connect(onClk)
+    return b
+  end
+
+  makeBtn("btnEnabled", 26, "ENABLED  " .. (cfg.enabled and "ON" or "OFF"), function() cfg.enabled = not cfg.enabled end)
+  makeBtn("btnExact", 56, "EXACT", function() cfg.exact = not cfg.exact end)
+  makeBtn("btnSpeedM", 86, "- Speed", function() cfg.speed = math.max(3, cfg.speed - 3) end)
+  makeBtn("btnSpeedP", 116, "+ Speed", function() cfg.speed = math.min(40, cfg.speed + 3) end)
+
+  statusLbl = Instance.new("TextLabel")
+  statusLbl.Size = UDim2.new(1, -8, 0, 18)
+  statusLbl.Position = UDim2.new(0, 8, 1, -20)
+  statusLbl.BackgroundTransparency = 1
+  statusLbl.Text = "click anywhere to tween"
+  statusLbl.TextColor3 = Color3.fromRGB(79, 195, 247)
+  statusLbl.Font = Enum.Font.Gotham
+  statusLbl.TextSize = 11
+  statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+  statusLbl.Parent = frame
+
+  -- click/tap -&gt; tween: mouse on desktop, touch screenPoint ray on mobile
+  local plr = game.Players.LocalPlayer
+  local function tapPoint(scrX, scrY)
+    local cam, root = workspace and workspace.CurrentCamera, getRoot()
+    if not (cam and cam.ViewportPointToRay and root) then return nil end
+    local ray = cam:ViewportPointToRay(scrX, scrY)
+    if ray.Direction.Y == 0 then return nil end
+    local t = (root.Position.Y - ray.Origin.Y) / ray.Direction.Y
+    if t &lt; 0 then return nil end
+    return ray.Origin + ray.Direction * t
+  end
+  local mouse = plr.GetMouse and plr:GetMouse()
+  if mouse then
+    mouse.Button1Down:Connect(function()
+      local hit = mouse.Hit
+      if hit then startTween(hit.Position.X, hit.Position.Z) end
+    end)
+  end
+  local uis
+  local okU = pcall(function() uis = game:GetService("UserInputService") end)
+  if okU and uis and uis.InputBegan then
+    uis.InputBegan:Connect(function(input)
+      if input and input.UserInputType == Enum.UserInputType.Touch then
+        local pt = tapPoint(input.Position.X, input.Position.Y)
+        if pt then startTween(pt.X, pt.Z) end
+      end
+    end)
+  end
+end
+
+-- keyboard: press E to toggle (both sandbox mouse shim keys and real UIS)
+local function wireKeys()
+  local uis = IS_SANDBOX and nil or game:GetService("UserInputService")
+  if uis and uis.InputBegan then
+    uis.InputBegan:Connect(function(input)
+      if input and input.KeyCode == Enum.KeyCode.E then
+        cfg.enabled = not cfg.enabled
+        if statusLbl then statusLbl.text = cfg.enabled and "enabled" or "disabled (E to enable)" end
+        if IS_SANDBOX then refreshAll() end
+        if input.KeyCode == Enum.KeyCode.E and input.IsModifierKeyDown then end
+      end
+    end)
+  end
+end
+if not IS_SANDBOX then wireKeys() end
+if IS_SANDBOX then SandboxSim.on("key", function(k) if k == "e" then cfg.enabled = not cfg.enabled; refreshAll() end end) end
+
+print("[ClickTween] ready — click the world to tween there with precision")</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">Break it: switch <code>EASE</code> to <code>"OutElastic"</code>, set <code>cfg.speed = 40</code>, or add a GUI button that re-fires your last click. Every change shows up the frame you press Run.</div>
+</section>
+
+<!-- ================= LESSON 17 ================= -->
+<section class="lesson" id="scripts">
+  <div class="kicker">Lesson 17 · Your machine</div>
+  <h1>Your scripts, from your phone</h1>
+  <p>Scripts you drop into <code>~/Luaa/scripts/</code> (or copy from <code>~/storage/downloads/</code>) show up in the box below. Pick one, load it, hit <b>Run</b> — same sandbox, same canvas, same GUI. Or hit <b>Explain</b> to get it dissected: functions, loops, connected events and the services it touches, with line numbers.</p>
+  <div class="bar2">
+    <select id="scripts-pick"></select>
+    <button id="scripts-load">Load</button>
+    <button id="scripts-explain">Explain</button>
+  </div>
+  <div class="ex">
+    <div class="bar"><span class="t">script.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" id="scripts-ta" spellcheck="false"></textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em" id="scripts-statusline">Bring files in from Downloads:</div>
+  <div class="codewrap" style="margin-top:6px"><pre class="hl"><span class="tk-cm">-- on the phone:</span>
+cp ~/storage/downloads/*.lua ~/Luaa/scripts/</pre></div>
+  <div class="explainwrap" id="scripts-explain-out" style="display:none"></div>
+  <div class="em">fun target: load a <code>downloads/luas</code> script (CludeHub GUI, key-systems) and Explain it — that's reading with a highlighter.</div>
+</section>
+
 <div class="console on" id="pane-console">
   <div class="conwin">
     <div class="conhead">
@@ -1106,6 +1438,7 @@ function runChunkOnState(L, code, outEl, statusEl, keepOutput) {
   lua.lua_pushvalue(L, 1);
   lua.lua_xmove(L, thread, 1);
   var ref = laux.luaL_ref(L, lua.LUA_REGISTRYINDEX, 2);
+  lua.lua_settop(L, 0); // drop the loaded chunk so the next runChunk / console line can't re-run it
   if (statusEl) {
     statusEl.classList.add("show");
     statusEl.textContent = "running…";
@@ -1581,12 +1914,153 @@ function setupConsole() {
 }
 
 /* ============================================================
+   5. SCRIPTS LIBRARY (lesson 17): picker + explain analyzer
+   ============================================================ */
+var SCRIPT_API = ["SandboxSim","TweenService","UserInputService","RunService","HttpService","RemoteEvent","Remote","Players","workspace","ReplicatedStorage","Lighting","Instance","game","startergui","StarterGui","getgenv","getrawmetatable","hookmetamethod","hookfunction","loadstring","task","require","Camera"];
+
+function explainScript(code) {
+  var lines = code.split("\n").map(function (l) { return l.replace(/\r$/, ""); });
+  var funcs = [], connects = [], loops = [], remotes = [], api = {};
+  var depth = 0, curFn = null;
+
+  function addApi(name) { if (SCRIPT_API.indexOf(name) !== -1) api[name] = (api[name] || 0) + 1; }
+
+  for (var i = 0; i < lines.length; i++) {
+    var raw = lines[i];
+    var line = raw.replace(/--.*$/, "").trim();
+    var tokens = (line.match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []);
+    tokens.forEach(addApi);
+
+    var fnMatch =
+      /^local\s+function\s+([A-Za-z_]\w*)/.exec(line) ||
+      /^function\s+([A-Za-z_.]\w*)/.exec(line) ||
+      /^local\s+([A-Za-z_]\w*)\s*=\s*function/.exec(line) ||
+      /([A-Za-z_]\w*)\s*=\s*function/.exec(line);
+    if (fnMatch && !line.match(/function.*\)\s*end\s*$/)) {
+      curFn = { name: fnMatch[1], line: i + 1, end: i + 2, body: [] };
+      depth = 1;
+      funcs.push(curFn);
+    } else if (curFn && depth > 0) {
+      curFn.body.push(line);
+      var ops = (line.match(/\b(function|end)\b/g) || []);
+      if (line.indexOf("--") === -1) {
+        ops.forEach(function (o) { if (o === "function") depth++; else depth--; });
+      }
+      if (depth <= 0) { curFn.end = i + 1; curFn = null; }
+    }
+
+    var loop = /^\s*(while\b.*)\s*do\s*$/.exec(raw) ||
+               (line.indexOf("repeat") === 0 ? [raw, "repeat"] : null) ||
+               (line.indexOf("task") !== -1 && line.indexOf("while") !== -1 ? null : null);
+    if (loop) loops.push({ type: loop[1], line: i + 1 });
+    if (/^(for\b)/.test(line)) loops.push({ type: "for", line: i + 1 });
+
+    var conn = /([A-Za-z_][\w.]*)\s*[.:]Connect\(\s*function/.exec(line) ||
+               /([A-Za-z_][\w.]*)\s*\.Connect\(/.exec(line);
+    if (conn) connects.push({ obj: conn[1], line: i + 1 });
+
+    if (/[.:](FireServer|InvokeServer|FireClient|Fire)\(/.test(line)) remotes.push({ call: line.replace(/\s+/g, " ").slice(0, 60), line: i + 1 });
+  }
+
+  var apiNames = Object.keys(api).sort(function (a, b) { return api[b] - api[a]; });
+  var h = [];
+  h.push("<div class='echips'>");
+  h.push("<span>" + lines.length + " lines</span>");
+  h.push("<span>" + funcs.length + " function" + (funcs.length === 1 ? "" : "s") + "</span>");
+  h.push("<span>" + connects.length + " connected event" + (connects.length === 1 ? "" : "s") + "</span>");
+  h.push("<span>" + loops.length + " loop" + (loops.length === 1 ? "" : "s") + "</span>");
+  h.push("<span>" + (remotes.length ? remotes.length + " remote call" + (remotes.length === 1 ? "" : "s") : "no remote calls") + "</span>");
+  h.push("</div>");
+
+  if (funcs.length) {
+    h.push("<h4>Functions</h4><ul class='eclist'>");
+    funcs.forEach(function (f) {
+      var guess = f.body.join(" ").match(/print\(|setGui|getPlayer|Heartbeat|wait\(|setPlayer|addMob|addCoin|startTween|target|sell|buy|fight/);
+      h.push("<li><b>" + esc(f.name) + "</b> &mdash; lines " + f.line + "&#8209;" + f.end + (guess ? " &mdash; " + esc(guess[0].replace(/[()]/g, "")) : "") + "</li>");
+    });
+    h.push("</ul>");
+  }
+  if (connects.length) {
+    h.push("<h4>Events connected</h4><ul class='eclist'>");
+    connects.forEach(function (c) { h.push("<li>line " + c.line + " &mdash; <code>" + esc(c.obj) + "</code>:Connect(...)</li>"); });
+    h.push("</ul>");
+  }
+  if (remotes.length) {
+    h.push("<h4>Remote / network calls</h4><ul class='eclist'>");
+    remotes.forEach(function (r) { h.push("<li>line " + r.line + " &mdash; <code>" + esc(r.call) + "</code></li>"); });
+    h.push("</ul>");
+  }
+  if (apiNames.length) {
+    h.push("<h4>API it touches</h4><div class='echips'>");
+    apiNames.forEach(function (n) { h.push("<span>" + esc(n) + "&times;" + api[n] + "</span>"); });
+    h.push("</div>");
+  }
+
+  h.push("<h4>Line-by-line</h4><pre class='explaincode'>");
+  for (var j = 0; j < lines.length; j++) h.push("<span class='elno'>" + (j + 1) + "</span>" + esc(lines[j]));
+  h.push("</pre>");
+  return h.join("");
+}
+
+function setupScripts() {
+  var pick = $("scripts-pick"), loadBtn = $("scripts-load"), exBtn = $("scripts-explain"), reject = false;
+  if (!pick || !loadBtn || !exBtn) return;
+  var ta = $("scripts-ta"), box = $("scripts-explain-out");
+  if (typeof fetch !== "function") {
+    pick.innerHTML = "";
+    var o0 = document.createElement("option");
+    o0.textContent = "(needs the preview server — open via localhost)";
+    pick.appendChild(o0);
+    return;
+  }
+  fetch("api/scripts", { cache: "no-store" }).then(function (r) {
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }).then(function (list) {
+    pick.innerHTML = "";
+    if (!list.length) {
+      var o = document.createElement("option");
+      o.textContent = "(no scripts — cp them into ~/Luaa/scripts/)";
+      pick.appendChild(o);
+      return;
+    }
+    list.forEach(function (f) {
+      var o = document.createElement("option");
+      o.value = f.name;
+      o.textContent = f.name + "  —  " + f.size + " B";
+      pick.appendChild(o);
+    });
+  }, function () { reject = true; }).then(function () {
+    if (reject) { pick.innerHTML = ""; var o = document.createElement("option"); o.textContent = "(run from the preview server, not file://)"; pick.appendChild(o); }
+  });
+
+  function loadSel() {
+    var n = pick && pick.value;
+    if (!n || n.indexOf(".lua") === -1 && n.indexOf(".txt") === -1) return;
+    fetch("scripts/" + encodeURIComponent(n), { cache: "no-store" }).then(function (r) { return r.text(); }).then(function (t) {
+      ta.value = t;
+      applyHighlight(ta);
+      var st = $("scripts-statusline");
+      if (st) st.textContent = "loaded " + n + " — hit Run, or Explain to read it";
+    });
+  }
+  loadBtn.addEventListener("click", loadSel);
+
+  exBtn.addEventListener("click", function () {
+    if (!ta.value.trim()) return;
+    box.style.display = "block";
+    box.innerHTML = explainScript(ta.value);
+  });
+}
+
+/* ============================================================
    BOOT
    ============================================================ */
 document.addEventListener("DOMContentLoaded", function () {
   setupPanes();
   setupExamples();
   setupConsole();
+  setupScripts();
   loadProgress();
   document.querySelectorAll("textarea.code").forEach(function (ta) { applyHighlight(ta); });
   var first = document.querySelector(".chap");

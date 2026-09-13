@@ -16,6 +16,8 @@
   <button class="chap" data-target="remotes"><span class="n">13</span> Remotes + anti-cheat</button>
   <button class="chap" data-target="guilib"><span class="n">14</span> Project: GUI library</button>
   <button class="chap" data-target="animesim"><span class="n">15</span> Anime Sim (runnable)</button>
+  <button class="chap" data-target="tween"><span class="n">16</span> Click Tween (test)</button>
+  <button class="chap" data-target="scripts"><span class="n">17</span> Your scripts</button>
 </nav>
 
 <div class="main">
@@ -694,6 +696,49 @@ hud()</textarea></div>
 </section>
 
 </div>
+
+<!-- ================= LESSON 16 ================= -->
+<section class="lesson" id="tween">
+  <div class="kicker">Lesson 16 · Project</div>
+  <h1>Click Tween — runnable test script</h1>
+  <p>This is the same <code>scripts/test.lua</code> you keep on your phone, as a lesson. Tap the canvas and you tween there with precision (error 0.000). Reading any real script is just answering four questions:</p>
+  <h2>1 · What does it build? — the GUI</h2>
+  <p><code>SandboxSim.setGui(id, {text=…, x, y, w, h, color})</code> draws a button on the HUD. <code>SandboxSim.on("gui", function(id) … end)</code> is what fires when the button is actually pressed on screen. That pair — <b>draw + handle</b> — is the whole GUI library. The script keeps a <code>cfg</code> table (enabled / speed / exact / ease) and re-draws the buttons every time <code>refreshAll()</code> runs, so the HUD reflects the config.</p>
+  <h2>2 · What triggers it? — click to action</h2>
+  <p><code>SandboxSim.on("click", function(x, z) startTween(x, z) end)</code>. The canvas reports the world point you tapped (<code>x</code>, <code>z</code>) — no pixels, actual studs. <code>startTween</code> reads where you <i>are</i> (<code>SandboxSim.getPlayer()</code>), stores the target, and computes <code>t1 = distance / speed</code>. Tap again mid-flight and it re-targets from wherever it is.</p>
+  <h2>3 · How does it move? — the Heartbeat loop</h2>
+  <p><code>RunService.Heartbeat:Connect(function(dt) … end)</code> runs once per frame; <code>dt</code> is the seconds that frame took. The script turns that into <code>elapsed = elapsed + dt</code> then <code>p = elapsed / t1</code> — a 0→1 progress. <code>easeFn(p)</code> shapes the curve, and each frame the player is set to <code>start + (target - start) * e</code>. That lerp-on-heartbeat is the animation engine every game uses.</p>
+  <h2>4 · When does it stop? — precision</h2>
+  <p>At <code>p &gt;= 1</code> it snaps exactly to the clicked point, removes the target coin, and prints <code>error 0.000</code>. Not "close enough" — the exact click. That "snap at the end" is what makes tweens feel precise instead of drifting.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">tween.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">@@TEST_LUA@@</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">Break it: switch <code>EASE</code> to <code>"OutElastic"</code>, set <code>cfg.speed = 40</code>, or add a GUI button that re-fires your last click. Every change shows up the frame you press Run.</div>
+</section>
+
+<!-- ================= LESSON 17 ================= -->
+<section class="lesson" id="scripts">
+  <div class="kicker">Lesson 17 · Your machine</div>
+  <h1>Your scripts, from your phone</h1>
+  <p>Scripts you drop into <code>~/Luaa/scripts/</code> (or copy from <code>~/storage/downloads/</code>) show up in the box below. Pick one, load it, hit <b>Run</b> — same sandbox, same canvas, same GUI. Or hit <b>Explain</b> to get it dissected: functions, loops, connected events and the services it touches, with line numbers.</p>
+  <div class="bar2">
+    <select id="scripts-pick"></select>
+    <button id="scripts-load">Load</button>
+    <button id="scripts-explain">Explain</button>
+  </div>
+  <div class="ex">
+    <div class="bar"><span class="t">script.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" id="scripts-ta" spellcheck="false"></textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em" id="scripts-statusline">Bring files in from Downloads:</div>
+  <div class="codewrap" style="margin-top:6px"><pre class="hl"><span class="tk-cm">-- on the phone:</span>
+cp ~/storage/downloads/*.lua ~/Luaa/scripts/</pre></div>
+  <div class="explainwrap" id="scripts-explain-out" style="display:none"></div>
+  <div class="em">fun target: load a <code>downloads/luas</code> script (CludeHub GUI, key-systems) and Explain it — that's reading with a highlighter.</div>
+</section>
 
 <div class="console on" id="pane-console">
   <div class="conwin">

@@ -50,6 +50,7 @@ const context = {
   window: null,
   document: documentStub,
   navigator: { clipboard: null },
+  fetch: () => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve([]) }),
   localStorage: { getItem: () => null, setItem: () => {} },
   setInterval: () => 0,
   clearInterval: () => {},

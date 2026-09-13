@@ -15,7 +15,8 @@ console.log("app.js written (" + engine.length + " bytes, prelude " + prelude.le
 
 const head = fs.readFileSync(path.join(src, "head.html"), "utf8");
 const fengari = fs.readFileSync(path.join(src, "fengari-web.min.js"), "utf8");
-const body = fs.readFileSync(path.join(src, "body.html"), "utf8");
+const body = require(path.join(__dirname, "lib.js")).inject(
+  fs.readFileSync(path.join(src, "body.html"), "utf8"));
 const installedApp = fs.readFileSync(app, "utf8");
 const closing = "</script></head><body>\n" + body + "\n<script>\n" + installedApp + "</script>\n</body></html>\n";
 

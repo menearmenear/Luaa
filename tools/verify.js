@@ -11,13 +11,20 @@ const src = path.join(root, "src");
 global.window = global;
 const f = require(path.join(src, "fengari-web.min.js"));
 const prelude = fs.readFileSync(path.join(src, "prelude.lua"), "utf8");
-const body = fs.readFileSync(path.join(src, "body.html"), "utf8");
+const body = require(path.join(__dirname, "lib.js")).inject(
+  fs.readFileSync(path.join(src, "body.html"), "utf8"));
 const lua = f.lua, laux = f.lauxlib;
 
 const re = /<textarea class="code"[^>]*>([\s\S]*?)<\/textarea>/g;
+const decodeEntities = (s) => s
+  .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 const snippets = [];
 let m;
-while ((m = re.exec(body)) !== null) snippets.push(m[1]);
+while ((m = re.exec(body)) !== null) {
+  // skip the lesson-17 library textarea (empty until a file is loaded)
+  if (m[1].trim()) snippets.push(decodeEntities(m[1]));
+}
 console.log("found", snippets.length, "snippets");
 
 function makeState() {

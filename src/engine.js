@@ -701,12 +701,153 @@ function setupConsole() {
 }
 
 /* ============================================================
+   5. SCRIPTS LIBRARY (lesson 17): picker + explain analyzer
+   ============================================================ */
+var SCRIPT_API = ["SandboxSim","TweenService","UserInputService","RunService","HttpService","RemoteEvent","Remote","Players","workspace","ReplicatedStorage","Lighting","Instance","game","startergui","StarterGui","getgenv","getrawmetatable","hookmetamethod","hookfunction","loadstring","task","require","Camera"];
+
+function explainScript(code) {
+  var lines = code.split("\n").map(function (l) { return l.replace(/\r$/, ""); });
+  var funcs = [], connects = [], loops = [], remotes = [], api = {};
+  var depth = 0, curFn = null;
+
+  function addApi(name) { if (SCRIPT_API.indexOf(name) !== -1) api[name] = (api[name] || 0) + 1; }
+
+  for (var i = 0; i < lines.length; i++) {
+    var raw = lines[i];
+    var line = raw.replace(/--.*$/, "").trim();
+    var tokens = (line.match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []);
+    tokens.forEach(addApi);
+
+    var fnMatch =
+      /^local\s+function\s+([A-Za-z_]\w*)/.exec(line) ||
+      /^function\s+([A-Za-z_.]\w*)/.exec(line) ||
+      /^local\s+([A-Za-z_]\w*)\s*=\s*function/.exec(line) ||
+      /([A-Za-z_]\w*)\s*=\s*function/.exec(line);
+    if (fnMatch && !line.match(/function.*\)\s*end\s*$/)) {
+      curFn = { name: fnMatch[1], line: i + 1, end: i + 2, body: [] };
+      depth = 1;
+      funcs.push(curFn);
+    } else if (curFn && depth > 0) {
+      curFn.body.push(line);
+      var ops = (line.match(/\b(function|end)\b/g) || []);
+      if (line.indexOf("--") === -1) {
+        ops.forEach(function (o) { if (o === "function") depth++; else depth--; });
+      }
+      if (depth <= 0) { curFn.end = i + 1; curFn = null; }
+    }
+
+    var loop = /^\s*(while\b.*)\s*do\s*$/.exec(raw) ||
+               (line.indexOf("repeat") === 0 ? [raw, "repeat"] : null) ||
+               (line.indexOf("task") !== -1 && line.indexOf("while") !== -1 ? null : null);
+    if (loop) loops.push({ type: loop[1], line: i + 1 });
+    if (/^(for\b)/.test(line)) loops.push({ type: "for", line: i + 1 });
+
+    var conn = /([A-Za-z_][\w.]*)\s*[.:]Connect\(\s*function/.exec(line) ||
+               /([A-Za-z_][\w.]*)\s*\.Connect\(/.exec(line);
+    if (conn) connects.push({ obj: conn[1], line: i + 1 });
+
+    if (/[.:](FireServer|InvokeServer|FireClient|Fire)\(/.test(line)) remotes.push({ call: line.replace(/\s+/g, " ").slice(0, 60), line: i + 1 });
+  }
+
+  var apiNames = Object.keys(api).sort(function (a, b) { return api[b] - api[a]; });
+  var h = [];
+  h.push("<div class='echips'>");
+  h.push("<span>" + lines.length + " lines</span>");
+  h.push("<span>" + funcs.length + " function" + (funcs.length === 1 ? "" : "s") + "</span>");
+  h.push("<span>" + connects.length + " connected event" + (connects.length === 1 ? "" : "s") + "</span>");
+  h.push("<span>" + loops.length + " loop" + (loops.length === 1 ? "" : "s") + "</span>");
+  h.push("<span>" + (remotes.length ? remotes.length + " remote call" + (remotes.length === 1 ? "" : "s") : "no remote calls") + "</span>");
+  h.push("</div>");
+
+  if (funcs.length) {
+    h.push("<h4>Functions</h4><ul class='eclist'>");
+    funcs.forEach(function (f) {
+      var guess = f.body.join(" ").match(/print\(|setGui|getPlayer|Heartbeat|wait\(|setPlayer|addMob|addCoin|startTween|target|sell|buy|fight/);
+      h.push("<li><b>" + esc(f.name) + "</b> &mdash; lines " + f.line + "&#8209;" + f.end + (guess ? " &mdash; " + esc(guess[0].replace(/[()]/g, "")) : "") + "</li>");
+    });
+    h.push("</ul>");
+  }
+  if (connects.length) {
+    h.push("<h4>Events connected</h4><ul class='eclist'>");
+    connects.forEach(function (c) { h.push("<li>line " + c.line + " &mdash; <code>" + esc(c.obj) + "</code>:Connect(...)</li>"); });
+    h.push("</ul>");
+  }
+  if (remotes.length) {
+    h.push("<h4>Remote / network calls</h4><ul class='eclist'>");
+    remotes.forEach(function (r) { h.push("<li>line " + r.line + " &mdash; <code>" + esc(r.call) + "</code></li>"); });
+    h.push("</ul>");
+  }
+  if (apiNames.length) {
+    h.push("<h4>API it touches</h4><div class='echips'>");
+    apiNames.forEach(function (n) { h.push("<span>" + esc(n) + "&times;" + api[n] + "</span>"); });
+    h.push("</div>");
+  }
+
+  h.push("<h4>Line-by-line</h4><pre class='explaincode'>");
+  for (var j = 0; j < lines.length; j++) h.push("<span class='elno'>" + (j + 1) + "</span>" + esc(lines[j]));
+  h.push("</pre>");
+  return h.join("");
+}
+
+function setupScripts() {
+  var pick = $("scripts-pick"), loadBtn = $("scripts-load"), exBtn = $("scripts-explain"), reject = false;
+  if (!pick || !loadBtn || !exBtn) return;
+  var ta = $("scripts-ta"), box = $("scripts-explain-out");
+  if (typeof fetch !== "function") {
+    pick.innerHTML = "";
+    var o0 = document.createElement("option");
+    o0.textContent = "(needs the preview server — open via localhost)";
+    pick.appendChild(o0);
+    return;
+  }
+  fetch("api/scripts", { cache: "no-store" }).then(function (r) {
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }).then(function (list) {
+    pick.innerHTML = "";
+    if (!list.length) {
+      var o = document.createElement("option");
+      o.textContent = "(no scripts — cp them into ~/Luaa/scripts/)";
+      pick.appendChild(o);
+      return;
+    }
+    list.forEach(function (f) {
+      var o = document.createElement("option");
+      o.value = f.name;
+      o.textContent = f.name + "  —  " + f.size + " B";
+      pick.appendChild(o);
+    });
+  }, function () { reject = true; }).then(function () {
+    if (reject) { pick.innerHTML = ""; var o = document.createElement("option"); o.textContent = "(run from the preview server, not file://)"; pick.appendChild(o); }
+  });
+
+  function loadSel() {
+    var n = pick && pick.value;
+    if (!n || n.indexOf(".lua") === -1 && n.indexOf(".txt") === -1) return;
+    fetch("scripts/" + encodeURIComponent(n), { cache: "no-store" }).then(function (r) { return r.text(); }).then(function (t) {
+      ta.value = t;
+      applyHighlight(ta);
+      var st = $("scripts-statusline");
+      if (st) st.textContent = "loaded " + n + " — hit Run, or Explain to read it";
+    });
+  }
+  loadBtn.addEventListener("click", loadSel);
+
+  exBtn.addEventListener("click", function () {
+    if (!ta.value.trim()) return;
+    box.style.display = "block";
+    box.innerHTML = explainScript(ta.value);
+  });
+}
+
+/* ============================================================
    BOOT
    ============================================================ */
 document.addEventListener("DOMContentLoaded", function () {
   setupPanes();
   setupExamples();
   setupConsole();
+  setupScripts();
   loadProgress();
   document.querySelectorAll("textarea.code").forEach(function (ta) { applyHighlight(ta); });
   var first = document.querySelector(".chap");
