@@ -225,6 +225,7 @@ function runChunkOnState(L, code, outEl, statusEl, keepOutput) {
   lua.lua_pushvalue(L, 1);
   lua.lua_xmove(L, thread, 1);
   var ref = laux.luaL_ref(L, lua.LUA_REGISTRYINDEX, 2);
+  lua.lua_settop(L, 0); // drop the loaded chunk so the next runChunk / console line can't re-run it
   if (statusEl) {
     statusEl.classList.add("show");
     statusEl.textContent = "running…";
