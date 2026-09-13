@@ -89,6 +89,17 @@ textarea.code:focus{box-shadow:inset 0 0 0 2px rgba(34,211,238,.4)}
 .status{font-size:11px;color:var(--green);font-family:var(--mono);margin:6px 2px 0;display:none}
 .status.show{display:block}
 
+/* ---------- SandboxSim game view ---------- */
+.gview{display:none;position:relative;width:100%;max-width:480px;margin:12px 0 0;
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0f1410}
+.gview canvas{display:block;width:100%;height:auto;cursor:crosshair}
+.gview .ghud{position:absolute;inset:0;pointer-events:none}
+.gview .gbtn{position:absolute;border-radius:6px;border:1px solid rgba(255,255,255,.28);
+  font-family:var(--sans);font-weight:800;display:flex;align-items:center;justify-content:center;
+  text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.5);pointer-events:auto;cursor:pointer;
+  overflow:hidden;white-space:nowrap}
+.gview .gbtn:hover{filter:brightness(1.18)}
+
 /* syntax colors */
 .tk-kw{color:#c792ea;font-weight:600}
 .tk-str{color:#c3e88d}
@@ -164,6 +175,9 @@ Copyright © 1994–2017 Lua.org, PUC-Rio.
   <button class="chap" data-target="gui"><span class="n">10</span> Project: GUI</button>
   <button class="chap" data-target="keysystem"><span class="n">11</span> Project: Key-systems</button>
   <button class="chap" data-target="obfuscation"><span class="n">12</span> Obfuscation</button>
+  <button class="chap" data-target="remotes"><span class="n">13</span> Remotes + anti-cheat</button>
+  <button class="chap" data-target="guilib"><span class="n">14</span> Project: GUI library</button>
+  <button class="chap" data-target="animesim"><span class="n">15</span> Anime Sim (runnable)</button>
 </nav>
 
 <div class="main">
@@ -591,7 +605,254 @@ _ = function(...) return ... end       -- junk to confuse readers</textarea></di
     <div class="out"></div><div class="status"></div>
   </div>
   <div class="em"><b>How to actually read one:</b> use skills from Lessons 1→8. Find <code>loadstring</code>/<code>HttpGet</code> first (it's the funnel), trace what it calls, then cut the junk variables.</div>
-  <p style="margin-top:16px">That's the full course. You now have every building block used in the files in <code>downloads/luas</code>. Open the <b>Console</b> tab, press the hint chip, and experiment.</p>
+  <p style="margin-top:16px">That's the core course. Next: remotes + anti-cheat, a real GUI library, and an actual playable game you build yourself.</p>
+</section>
+
+<!-- ================= LESSON 13 ================= -->
+<section class="lesson" id="remotes">
+  <div class="kicker">Lesson 13</div>
+  <h1>RemoteEvents + a fake anti-cheat</h1>
+  <p>Every executor script funnels its actions through <b>RemoteEvents</b>: <code>FireServer</code> sends a request, the server validates it. Here the sandbox simulates the whole round-trip, and you'll see exactly why "spam the remote" scripts die instantly.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">remotes.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- every shop/teleport in a game is one of these
+local shop = Instance.new("RemoteEvent")
+shop.Name = "BuyItem"
+shop.Parent = game.ReplicatedStorage
+
+-- the fake "server" (in Roblox this lives in a Script)
+local purchases = {}
+local function serverOnFire(who, item)
+  table.insert(purchases, item)
+  if item == "cheat-sword" then
+    print("SERVER: denied", who.Name, "bought a cheat item")
+    return false
+  end
+  print("SERVER:", who.Name, "bought", item)
+  return true
+end
+shop.OnServerEvent:Connect(function(who, item)
+  serverOnFire(who, item)
+end)
+
+-- what YOUR script does (the client side)
+shop:FireServer("potion")
+shop:FireServer("sword")
+shop:FireServer("cheat-sword")        -- denied
+
+-- now spam the remote like a bad anti-cheat test:
+for i = 1, 3 do shop:FireServer("potion") end
+task.wait(0.05)   -- let the (async) server respond
+print("server processed", #purchases, "purchase requests")
+
+-- server -> client direction (notifications)
+local ux = Instance.new("RemoteEvent")
+ux.Name = "ShowMessage"
+ux.Parent = game.ReplicatedStorage
+ux.OnClientEvent:Connect(function(text)
+  print("SERVER SAYS:", text)
+end)
+ux:FireClient(game.Players.LocalPlayer, "Welcome back, hacker.")</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="warn">In real games the server decides <b>everything</b>. Your client can only ask. The remote you can see and fire is exactly what anti-cheats watch — spam <code>FireServer</code> and you get instant-banned, not free items.</div>
+</section>
+
+<!-- ================= LESSON 14 ================= -->
+<section class="lesson" id="guilib">
+  <div class="kicker">Lesson 14 · Project</div>
+  <h1>Project: a GUI library you can see</h1>
+  <p>This is the skeleton of the CludeHub-style window lib from <code>bb68159e42ec2929.lua.txt</code> — except this one <b>renders</b>. <code>SandboxSim</code> draws a clickable canvas under your output box, so the window you build from Lua becomes real buttons you can press.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">guilib.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">local lib = {}
+
+function lib.MakeWindow(opts)
+  local root = Instance.new("ScreenGui")
+  root.Name = opts.Name or "Window"
+  root.Parent = Players.LocalPlayer.PlayerGui
+
+  local win = Instance.new("Frame")
+  win.Name = "Main"
+  win.Size = UDim2.new(0, 260, 0, 140)
+  win.Position = UDim2.new(0, 30, 0, 30)
+  win.BackgroundColor3 = Color3.new(0.10, 0.10, 0.16)
+  win.BackgroundTransparency = 0.06
+  win.Parent = root
+
+  local title = Instance.new("TextLabel")
+  title.Text = opts.Title or "window"
+  title.BackgroundTransparency = 1
+  title.Parent = win
+
+  local body = Instance.new("Frame")
+  body.Name = "Body"
+  body.BackgroundTransparency = 1
+  body.Parent = win
+
+  local buttons = {}
+  function buttons.Add(label, onClick)
+    local b = Instance.new("TextButton")
+    b.Text = label
+    b.BackgroundColor3 = Color3.new(0.20, 0.45, 0.9)
+    b.Activated:Connect(onClick or function() end)
+    b.Parent = body
+  end
+
+  return { Root = root, Frame = win, Title = title, Buttons = buttons }
+end
+
+-- ---- build a window ----
+local w = lib.MakeWindow({ Title = "CludeHub", Name = "MyGui" })
+local function toggleFarm() print("[gui] autofarm ON") end
+local function noclip() print("[gui] noclip toggled") end
+w.Buttons.Add("AutoFarm", toggleFarm)
+w.Buttons.Add("Noclip", noclip)
+w.Buttons.Add("Close", function() print("[gui] closing") end)
+
+-- ---- render an identical, clickable copy into the sim ----
+SandboxSim.show()
+SandboxSim.setGui("win", {
+  text = "CludeHub  (" .. #w.Frame:GetDescendants() .. " instances live)",
+  x = 0.04, y = 0.30, w = 0.52, h = 0.40,
+  color = "#131a2e", textColor = "#dbe7ff",
+})
+SandboxSim.setGui("b1", { text = "AutoFarm", x = 0.06, y = 0.64, w = 0.22, h = 0.10, color = "#2563eb" })
+SandboxSim.setGui("b2", { text = "Noclip", x = 0.30, y = 0.64, w = 0.16, h = 0.10, color = "#7c3aed" })
+SandboxSim.on("gui", function(id)
+  if id == "b1" then toggleFarm()
+  elseif id == "b2" then noclip() end
+end)
+
+-- the same tree you inspected in Lesson 9
+print("window instance tree:")
+for _, d in ipairs(w.Frame:GetDescendants()) do
+  print("  " .. d:GetFullName())
+end</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">Seeing the connection <i>instances → rendered GUI</i> is the whole trick of reading GUI scripts: the tree you built in Roblox is everything a draggable window really is.</div>
+</section>
+
+<!-- ================= LESSON 15 ================= -->
+<section class="lesson" id="animesim">
+  <div class="kicker">Lesson 15 · Project</div>
+  <h1>Anime Sim — a whole game you build</h1>
+  <p>Click the canvas to walk around, click a red mob to fight it, buy stat upgrades from the HUD. The GUIs, the mob spawner, the coin picking, the damage math — all of it is <b>just the Lua you've learned</b>, running through <code>RunService.Heartbeat</code> exactly like a real game script.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">animesim.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">local sim = SandboxSim
+sim.show()
+sim.setPlayer(0, 0, 20)            -- spawn, facing north
+sim.setPlayerName("You")
+sim.setHealth(100, 100)
+
+local coins, damage, autoFarm = 5, 5, true
+local mode = "idle"                -- idle | walk | fight
+local wx, wz, target = 0, 0, nil
+
+local function hud()
+  sim.setGui("title", { text = "ANIME SIM", x = 0.02, y = 0.02, w = 0.36, h = 0.06, color = "rgba(0,0,0,0.35)", textColor = "#ffe082" })
+  sim.setGui("coins", { text = "$" .. coins, x = 0.66, y = 0.02, w = 0.32, h = 0.06, color = "#14261a", textColor = "#ffd54f" })
+  sim.setGui("stats", { text = "Dmg " .. damage, x = 0.66, y = 0.09, w = 0.15, h = 0.06, color = "#141c2e", textColor = "#b6c2ff" })
+  sim.setGui("spawn", { text = "mobs: " .. #sim.getMobs(), x = 0.82, y = 0.09, w = 0.16, h = 0.06, color = "#141c2e", textColor = "#e57373" })
+  sim.setGui("blade", { text = "Blade  $25  (+5 dmg)", x = 0.66, y = 0.17, w = 0.32, h = 0.09, color = "#263c8a", textColor = "#ffffff" })
+  sim.setGui("farm", { text = "AutoFarm: " .. (autoFarm and "ON" or "OFF"), x = 0.02, y = 0.92, w = 0.3, h = 0.07, color = autoFarm and "#0f3d2e" or "#3d2020", textColor = "#7CFC9A" })
+end
+hud()
+
+sim.on("click", function(x, z)
+  for _, m in ipairs(sim.getMobs()) do
+    if math.abs(m.x - x) < 1.1 and math.abs(m.z - z) < 1.1 then
+      target, mode = m, "fight"
+      return
+    end
+  end
+  wx, wz, mode = x, z, "walk"
+end)
+sim.on("gui", function(id)
+  if id == "blade" then
+    if coins >= 25 then
+      coins, damage = coins - 25, damage + 5
+      print("[shop] blade equipped! dmg now " .. damage)
+      hud()
+    else
+      print("[shop] need $25, you have $" .. coins)
+    end
+  elseif id == "farm" then
+    autoFarm = not autoFarm
+    hud()
+    print("[toggle] AutoFarm " .. (autoFarm and "ON" or "OFF"))
+  end
+end)
+
+-- the heartbeat IS the game loop
+RunService.Heartbeat:Connect(function(dt)
+  local px, pz = sim.getPlayer()
+  local speed = 5.5 * (dt or 0.016)
+
+  if autoFarm and not target then
+    local best, bd = nil, 1e9
+    for i, m in ipairs(sim.getMobs()) do
+      local d2 = (m.x - px) ^ 2 + (m.z - pz) ^ 2
+      if d2 < bd then bd, best = d2, m end
+    end
+    if best then target, mode = best, "fight" end
+  end
+
+  if mode == "walk" then
+    local dx, dz = wx - px, wz - pz
+    local d = math.sqrt(dx * dx + dz * dz)
+    if d < 0.15 then mode = "idle"
+    else sim.setPlayer(px + dx / d * speed, pz + dz / d * speed, math.deg(math.atan2(dx, -dz))) end
+  elseif mode == "fight" and target then
+    local dx, dz = target.x - px, target.z - pz
+    local d = math.sqrt(dx * dx + dz * dz)
+    sim.setPlayer(px, pz, math.deg(math.atan2(dx, -dz)))
+    if d > 1.4 then
+      sim.setPlayer(px + dx / d * speed, pz + dz / d * speed, math.deg(math.atan2(dx, -dz)))
+    else
+      target.hp = target.hp - damage
+      if target.hp <= 0 then
+        local kill = target
+        coins, target, mode = coins + 15, nil, "idle"
+        sim.addCoin(kill.x, kill.z)
+        print("[kill] +$15 -> $" .. coins)
+        for i, m in ipairs(sim.getMobs()) do if m == kill then sim.removeMob(i) break end end
+        hud()
+      end
+    end
+  end
+
+  for i = #sim.getCoins(), 1, -1 do
+    local c = sim.getCoins()[i]
+    if c and math.abs(c.x - px) < 0.8 and math.abs(c.z - pz) < 0.8 then
+      sim.removeCoin(i)
+      coins = coins + 10
+      hud()
+    end
+  end
+end)
+
+-- mob spawner
+task.spawn(function()
+  while true do
+    task.wait(1.4)
+    if #sim.getMobs() < 8 then
+      sim.addMob(math.random(-10, 10), math.random(-6, 6),
+        8 + math.min(20, math.floor(coins / 60) * 2), "#e57373")
+    end
+  end
+end)
+
+print("== ANIME SIM ==")
+print("Click the canvas to walk — click a red mob to fight it.")
+print("The stat boxes are GUIs you just built. Press Buy Blade.")
+hud()</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">This is an "anime sim" in one screen: walk → kill → coins → shop → stronger. Every game in <code>downloads/luas</code> is that feedback loop surrounded by GUI. You just wrote the whole thing.</div>
+  <p style="margin-top:16px">Done? Open the <b>Console</b> tab and break it yourself — change <code>damage</code>, add a teleport button, spawn ten mobs. That's the course.</p>
 </section>
 
 </div>
@@ -620,6 +881,7 @@ _ = function(...) return ... end       -- junk to confuse readers</textarea></di
 <script>
 /* ============================================================
    Lua Playground engine — fengari + sandbox Roblox environment
+   + SandboxSim visual mini-game renderer
    (app.js is generated: assembly replaces __PRELUDE_JSON__)
    ============================================================ */
 (function () {
@@ -630,21 +892,27 @@ function $(id) { return document.getElementById(id); }
 function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function now() { return (window.performance && window.performance.now) ? window.performance.now() : Date.now(); }
+function round2(n) { return Math.round(n * 100) / 100; }
 
 /* ---------- the sandbox prelude (injected at build time) ---------- */
-var PRELUDE = "-- ============================================================\n--  Lua Playground sandbox environment (Lua 5.3 / Luau-ish)\n--  Fakes a small slice of the Roblox runtime in the browser.\n-- ============================================================\n\nlocal real_tostring, real_type = tostring, type\n\n-- ---- 1. pretty printer used by print() ----\nlocal function fmt(v, depth, seen)\n  if seen == nil then seen = {} end\n  local t = real_type(v)\n  if t ~= \"table\" then\n    if t == \"string\" then return '\"' .. v .. '\"' end\n    return real_tostring(v)\n  end\n  if seen[v] then return \"<circular>\" end\n  seen[v] = true\n  if (depth or 0) > 6 then return \"<nested...>\" end\n  local mt = getmetatable(v)\n  if mt then\n    local ts = mt.__tostring\n    if not ts and type(mt.__index) == \"table\" then ts = mt.__index.__tostring end\n    if ts then\n      local ok, s = pcall(ts, v)\n      if ok and type(s) == \"string\" then return s end\n    end\n  end\n  local isArray = #v > 0\n  if isArray then\n    for i = 1, #v do if v[i] == nil then isArray = false break end end\n  end\n  local parts = {}\n  if isArray then\n    if #v == 0 then return \"{}\" end\n    for i = 1, #v do parts[i] = fmt(v[i], (depth or 0) + 1, seen) end\n    return \"{ \" .. table.concat(parts, \", \") .. \" }\"\n  end\n  local keys = {}\n  for k in pairs(v) do table.insert(keys, k) end\n  local function cmp(a, b)\n    if real_type(a) ~= real_type(b) then return real_type(a) < real_type(b) end\n    return real_tostring(a) < real_tostring(b)\n  end\n  table.sort(keys, cmp)\n  for _, k in ipairs(keys) do\n    table.insert(parts, \"[\" .. fmt(k, (depth or 0) + 1, seen) .. \"]=\" .. fmt(v[k], (depth or 0) + 1, seen))\n  end\n  return \"{ \" .. table.concat(parts, \", \") .. \" }\"\nend\n\nfunction print(...)\n  local n = select(\"#\", ...)\n  local parts = {}\n  for i = 1, n do parts[i] = fmt((select(i, ...))) end\n  _iotab(table.concat(parts, \"  \") .. \"\\n\")\nend\n\n-- ---- 2. Vector3 / Color3 / UDim2 (lightweight) ----\nVector3 = setmetatable({}, { __call = function(_, x, y, z) return Vector3.new(x, y, z) end })\nVector3.__index = Vector3\nfunction Vector3.new(x, y, z) return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0 }, Vector3) end\nfunction Vector3.__add(a, b) return Vector3.new(a.X + b.X, a.Y + b.Y, a.Z + b.Z) end\nfunction Vector3.__sub(a, b) return Vector3.new(a.X - b.X, a.Y - b.Y, a.Z - b.Z) end\nfunction Vector3.__mul(a, b) return Vector3.new(a.X * b, a.Y * b, a.Z * b) end\nfunction Vector3.__div(a, b) return Vector3.new(a.X / b, a.Y / b, a.Z / b) end\nfunction Vector3.__eq(a, b) return a.X == b.X and a.Y == b.Y and a.Z == b.Z end\nfunction Vector3.__tostring(v) return \"Vector3.new(\" .. v.X .. \", \" .. v.Y .. \", \" .. v.Z .. \")\" end\nfunction Vector3:Magnitude() return math.sqrt(self.X * self.X + self.Y * self.Y + self.Z * self.Z) end\nfunction Vector3:Dot(b) return self.X * b.X + self.Y * b.Y + self.Z * b.Z end\nfunction Vector3:Unit()\n  local m = self:Magnitude()\n  if m == 0 then return Vector3.new(0, 0, 0) end\n  return Vector3.new(self.X / m, self.Y / m, self.Z / m)\nend\nfunction Vector3:Lerp(b, a) return self + (b - self) * a end\nVector3.zero = Vector3.new(0, 0, 0)\nVector3.one = Vector3.new(1, 1, 1)\n\nColor3 = setmetatable({}, { __call = function(_, r, g, b) return Color3.new(r, g, b) end })\nColor3.__index = Color3\nfunction Color3.new(r, g, b) return setmetatable({ R = r, G = g, B = b }, Color3) end\nColor3.fromRGB = function(r, g, b) return Color3.new(r / 255, g / 255, b / 255) end\nfunction Color3:__tostring() return \"Color3.new(\" .. string.format(\"%d,%d,%d\", self.R * 255, self.G * 255, self.B * 255) .. \")\" end\n\nUDim2 = {}\nUDim2.__index = UDim2\nfunction UDim2.new(xScale, xOffset, yScale, yOffset)\n  return setmetatable({ X = { Scale = xScale or 0, Offset = xOffset or 0 }, Y = { Scale = yScale or 0, Offset = yOffset or 0 } }, UDim2)\nend\nUDim2.fromOffset = function(w, h) return UDim2.new(0, w, 0, h) end\nUDim2.fromScale = function(w, h) return UDim2.new(w, 0, h, 0) end\nUDim = {}\nUDim.__index = UDim\nfunction UDim.new(scale, offset) return setmetatable({ Scale = scale or 0, Offset = offset or 0 }, UDim) end\n\n-- ---- 3. mini event signals ----\nSignal = {}\nSignal.__index = Signal\nfunction Signal:Connect(fn)\n  table.insert(self._handlers, fn)\n  if self._last then fn((table.unpack and table.unpack(self._last)) or unpack(self._last)) end\n  return { Connected = true, fn = fn, sig = self }\nend\nfunction Signal:Wait()\n  local args = self._last\n  if args then\n    self._last = nil\n    return (table.unpack and table.unpack(args)) or unpack(args)\n  end\n  coroutine.yield(\"__wait_signal\")\n  args = self._last or {}\n  self._last = nil\n  return (table.unpack and table.unpack(args)) or unpack(args)\nend\nfunction Signal:Fire(...)\n  local args = { ... }\n  self._last = args\n  for _, fn in ipairs(self._handlers) do\n    task.spawn(function()\n      fn((table.unpack and table.unpack(args)) or unpack(args))\n    end)\n  end\nend\nfunction newSignal()\n  return setmetatable({ _handlers = {}, _last = nil }, Signal)\nend\n\n-- ---- 4. Instance engine ----\nInstance = {}\nlocal constructors = {}\n\nlocal parentSetter\nlocal rawNew\nrawNew = function(class, props)\n  local t = {}\n  t._class = class\n  t._name = class\n  t._children = {}\n  t._parent = nil\n  setmetatable(t, {\n    __index = function(self, k)\n      local f = Instance[k]\n      if f ~= nil then return f end\n      if k == \"ClassName\" then return self._class end\n      if k == \"Name\" then return self._name end\n      if k == \"Parent\" then return self._parent end\n      if k == \"Children\" then return self._children end\n      return nil\n    end,\n    __newindex = function(self, k, v)\n      if k == \"ClassName\" then self._class = v\n      elseif k == \"Name\" then self._name = v\n      elseif k == \"Children\" then self._children = v\n      elseif k == \"Parent\" then parentSetter(self, v)\n      else rawset(self, k, v) end\n    end,\n    __tostring = function(self)\n      return self._class .. ' \"' .. self._name .. '\"'\n    end,\n  })\n  t.Changed = newSignal()\n  t.ChildAdded = newSignal()\n  t.DescendantAdded = newSignal()\n  for k, v in pairs(props or {}) do\n    if k == \"Name\" then t._name = v elseif k == \"Parent\" then parentSetter(t, v) else rawset(t, k, v) end\n  end\n  return t\nend\n\nparentSetter = function(self, v)\n  if self._parent and self._parent ~= v then\n    local p = self._parent\n    for i, c in ipairs(p._children) do\n      if c == self then table.remove(p._children, i) break end\n    end\n    self._parent = nil\n  end\n  if v then\n    v._children[#v._children + 1] = self\n    self._parent = v\n    v.ChildAdded:Fire(self)\n  end\n  return v\nend\n\nfunction Instance:GetChildren()\n  local t = {}\n  for _, c in ipairs(self._children) do table.insert(t, c) end\n  return t\nend\nfunction Instance:GetDescendants()\n  local out = {}\n  local function walk(n)\n    for _, c in ipairs(n._children) do\n      table.insert(out, c)\n      walk(c)\n    end\n  end\n  walk(self)\n  return out\nend\nfunction Instance:FindFirstChild(name, recursive)\n  for _, c in ipairs(self._children) do\n    if c._name == name then return c end\n  end\n  if recursive then\n    for _, c in ipairs(self._children) do\n      local r = c:FindFirstChild(name, true)\n      if r then return r end\n    end\n  end\n  return nil\nend\nfunction Instance:FindFirstChildOfClass(cc)\n  for _, c in ipairs(self._children) do if c._class == cc then return c end end\n  return nil\nend\nfunction Instance:WaitForChild(name, timeout)\n  local c = self:FindFirstChild(name)\n  if c then return c end\n  local tries = 0\n  repeat\n    task.wait(0.1)\n    tries = tries + 1\n    c = self:FindFirstChild(name)\n  until c or (timeout and tries * 0.1 > timeout)\n  return c\nend\nfunction Instance:Destroy()\n  if self._parent then parentSetter(self, nil) end\nend\nfunction Instance:IsA(cc) return self._class == cc end\nfunction Instance:IsDescendantOf(a)\n  local p = self._parent\n  while p do\n    if p == a then return true end\n    p = p._parent\n  end\n  return false\nend\nfunction Instance:Clone()\n  local c = rawNew(self._class, { Name = self._name })\n  for _, ch in ipairs(self._children) do\n    local gc = ch:Clone()\n    gc.Parent = c\n  end\n  return c\nend\n\n-- constructor registry for special classes\nconstructors.Part = function(props)\n  local p = rawNew(\"Part\", props)\n  p.Size = Vector3.new(1, 1, 1)\n  p.Anchored = (props and props.Anchored) or false\n  p.Position = Vector3.new(0, 0, 0)\n  p.Material = \"Plastic\"\n  p.Color = Color3.new(1, 1, 1)\n  return p\nend\nconstructors.MeshPart = constructors.Part\nconstructors.Humanoid = function(props)\n  local h = rawNew(\"Humanoid\", props)\n  h.Health, h.MaxHealth = 100, 100\n  h.WalkSpeed = 16\n  h.JumpPower = 50\n  return h\nend\nconstructors.Frame = function(props)\n  local f = rawNew(\"Frame\", props)\n  f.BackgroundColor3 = Color3.new(0.08, 0.08, 0.1)\n  f.BackgroundTransparency = 0.2\n  f.Size = UDim2.new(0, 200, 0, 100)\n  f.BorderSizePixel = 0\n  return f\nend\nconstructors.TextLabel = function(props)\n  local l = rawNew(\"TextLabel\", props)\n  l.Text = \"Label\"\n  l.TextColor3 = Color3.new(1, 1, 1)\n  l.BackgroundTransparency = 0.7\n  l.TextScaled = true\n  return l\nend\nconstructors.TextButton = function(props)\n  local b = rawNew(\"TextButton\", props)\n  b.Text = \"Button\"\n  b.TextColor3 = Color3.new(1, 1, 1)\n  b.BackgroundColor3 = Color3.new(0.2, 0.45, 0.9)\n  b.Activated = newSignal()\n  b.Size = UDim2.new(0, 160, 0, 40)\n  return b\nend\nconstructors.ScreenGui = function(props)\n  return rawNew(\"ScreenGui\", props)\nend\nconstructors.RemoteEvent = function(props)\n  local r = rawNew(\"RemoteEvent\", props)\n  r.OnClientEvent = newSignal()\n  r.OnServerEvent = newSignal()\n  r.FireServer = function(self, ...)\n    _iotab(\"[remote] \" .. self._name .. \":FireServer(\" .. table.concat({ ... }, \", \") .. \")\\n\")\n    self.OnServerEvent:Fire(...)\n  end\n  r.FireClient = function(self, who, ...)\n    _iotab(\"[remote] \" .. self._name .. \"->\" .. tostring(who and who._name or \"?\") .. \"\\n\")\n    self.OnClientEvent:Fire(...)\n  end\n  r.FireAllClients = function(self, ...)\n    _iotab(\"[remote] \" .. self._name .. \" broadcast\\n\")\n    self.OnClientEvent:Fire(...)\n  end\n  return r\nend\nconstructors.BindableEvent = function(props)\n  local r = constructors.RemoteEvent(props)\n  r._class = \"BindableEvent\"\n  return r\nend\nconstructors.BindableFunction = function(props) return rawNew(\"BindableFunction\", props) end\n\nlocal ctor\nctor = function(class, props)\n  local c = constructors[class]\n  if c then return c(props) end\n  return rawNew(class, props)\nend\nInstance.new = ctor\n\n-- ---- 5. task / spawn / wait ----\ntask = {}\nfunction task.wait(n)\n  local t = (n and n > 0) and n or 0\n  coroutine.yield(t)\n  return t\nend\nfunction task.spawn(fn, ...)\n  return _spawn(fn, ...)\nend\nfunction task.defer(fn, ...) return task.spawn(fn, ...) end\nfunction task.delay(sec, fn, ...) return task.spawn(fn, ...) end\nfunction task.cancel() end\nfunction task.synchronize(fn, ...) return task.spawn(fn, ...) end\nfunction task.desynchronize(fn, ...) return task.spawn(fn, ...) end\nwait = task.wait\nspawn = task.spawn\ndelay = task.delay\n\nloadstring = loadstring or load\ngetgenv = getgenv or function() return _G end\ngetexecutorname = getexecutorname or function() return \"Lua Playground (sandbox)\" end\nidentifyexecutor = identifyexecutor or function() return \"lua-playground\", \"1.0\" end\nsetfpscap = setfpscap or function() end\ngetfpscap = getfpscap or function() return 60 end\n\n-- ---- 6. game, services, workspace ----\nlocal services = {}\nlocal game = rawNew(\"Game\", { Name = \"game\" })\nrawSetGame = nil\n\nlocal function makeService(name)\n  local s = rawNew(\"Service\", { Name = name })\n  services[name] = s\n  return s\nend\nlocal function getService(name)\n  if not services[name] then makeService(name) end\n  return services[name]\nend\n\n-- Players\nlocal Players = getService(\"Players\")\nlocal player = rawNew(\"Player\", { Name = \"DemoUser\", DisplayName = \"You\", UserId = 588447 })\nPlayers.LocalPlayer = player\nPlayers.LocalPlayer = player\nplayer.Character = rawNew(\"Model\", { Name = \"Character\" })\nplayer.Humanoid = ctor(\"Humanoid\", { Name = \"Humanoid\" })\nplayer.Humanoid.Parent = player.Character\nplayer.Backpack = rawNew(\"Model\", { Name = \"Backpack\" })\nplayer.PlayerGui = rawNew(\"ScreenGui\", { Name = \"PlayerGui\" })\nplayer.CharacterAdded = newSignal()\nplayer.CharacterRemoving = newSignal()\nPlayers.playerAdded = newSignal()\nPlayers.playerRemoving = newSignal()\nPlayers.GetPlayers = function() return { player } end\nPlayers.GetPlayerFromCharacter = function(self, ch) return player end\nPlayers.GetNameFromUserIdAsync = function(self, id) return \"Player\" .. tostring(id) end\nPlayers.GetUserIdFromNameAsync = function(self, name) return 1 end\n\n-- Workspace\nlocal Workspace = getService(\"Workspace\")\nlocal base = ctor(\"Part\", { Name = \"Baseplate\", Anchored = true })\nbase.Size = Vector3.new(512, 1, 512)\nbase.Position = Vector3.new(0, 0, 0)\nbase.Parent = Workspace\nWorkspace.Gravity = 196.2\nWorkspace.StreamingEnabled = false\nWorkspace.Raycast = function() return nil end\nWorkspace.FindPartOnRay = function() return nil end\n\n-- RunService\nlocal RunService = getService(\"RunService\")\nRunService.Heartbeat = newSignal()\nRunService.RenderStepped = newSignal()\nRunService.Stepped = newSignal()\nRunService.PreSimulation = newSignal()\nRunService.BindToRenderStep = function(self, k, p, fn) task.spawn(fn) return { Unbind = function() end } end\nRunService.UnbindFromRenderStep = function() end\nRunService.IsClient = function() return true end\nRunService.IsStudio = function() return true end\n\n-- ReplicatedStorage\nlocal ReplicatedStorage = getService(\"ReplicatedStorage\")\nlocal remotes = rawNew(\"Folder\", { Name = \"Remotes\" })\nremotes.Parent = ReplicatedStorage\nlocal eventsFolder = rawNew(\"Folder\", { Name = \"Events\" })\neventsFolder.Parent = ReplicatedStorage\n\n-- HttpService\nlocal HttpService = getService(\"HttpService\")\nHttpService.HttpEnabled = true\nfunction HttpService:JSONEncode(v) return \"(json stub)\" end\nfunction HttpService:JSONDecode(s) return nil end\n\n-- StarterGui / Debris / TextChatService / TweenService\nlocal StarterGui = getService(\"StarterGui\")\nStarterGui.SetCore = function(self, k, v)\n  _iotab(\"[StarterGui] SetCore(\" .. tostring(k) .. \")\\n\")\nend\nStarterGui.SetCoreGuiEnabled = function() end\nlocal Debris = getService(\"Debris\")\nDebris.AddItem = function() end\nlocal TextChatService = getService(\"TextChatService\")\nTextChatService.ChatVersion = \"TextChatService\"\nlocal TweenService = getService(\"TweenService\")\nTweenService.Create = function() return { Play = function() end, Cancel = function() end } end\nlocal Lighting = getService(\"Lighting\")\nLighting.Brightness = 1\nLighting.ClockTime = 14\n\ngame.GetService = function(self, n) return getService(n) end\ngame.GetObjects = function(self, s) return {} end\nfunction game:HttpGet(url, noCache)\n  _iotab(\"[sandbox] HttpGet(\" .. tostring(url) .. \") blocked\\n\")\n  return \"-- fake fetched: \" .. tostring(url)\nend\nfunction game:HttpGetAsync(url) return game:HttpGet(url) end\nfunction game:HttpPost(url, body) _iotab(\"[sandbox] HttpPost blocked\\n\") return \"\" end\ngame.Players = Players\ngame.Workspace = Workspace\ngame.ReplicatedStorage = ReplicatedStorage\ngame.HttpService = HttpService\ngame.Lighting = Lighting\ngame.FindFirstChild = Instance.FindFirstChild\ngame.WaitForChild = Instance.WaitForChild\n-- dot access for game/services handled by Players/Workspace globals already\n\n-- expose friends\nworkspace = Workspace\n\n-- ---- 7. publish globals ----\n_G.game = game\n_G.workspace = Workspace\n_G.Players = Players\n_G.ReplicatedStorage = ReplicatedStorage\n_G.RunService = RunService\n_G.Lighting = Lighting\n_G.HttpService = HttpService\n_G.Instance = Instance\n_G.newSignal = newSignal\n_G.Vector3 = Vector3\n_G.Color3 = Color3\n_G.UDim2 = UDim2\n_G.UDim = UDim\n_G.task = task\n_G.wait = wait\n_G.spawn = spawn\n_G.delay = delay\n\n-- help text\nprint(\"== Lua Playground sandbox ready ==\")\nprint(\"Themes: print, tables, functions, coroutines, events\")\nprint(\"Fake Roblox: game, workspace, Players, Instance, Vector3, task\")";
+var PRELUDE = "-- ============================================================\n--  Lua Playground sandbox environment (Lua 5.3 / Luau-ish)\n--  Fakes a small slice of the Roblox runtime in the browser.\n-- ============================================================\n\nlocal real_tostring, real_type = tostring, type\nunpack = table.unpack -- Lua 5.3 has no global unpack\n\n-- ---- 1. pretty printer used by print() ----\nlocal function fmt(v, depth, seen)\n  if seen == nil then seen = {} end\n  local t = real_type(v)\n  if t ~= \"table\" then\n    if t == \"string\" then return '\"' .. v .. '\"' end\n    return real_tostring(v)\n  end\n  if seen[v] then return \"<circular>\" end\n  seen[v] = true\n  if (depth or 0) > 6 then return \"<nested...>\" end\n  local mt = getmetatable(v)\n  if mt then\n    local ts = mt.__tostring\n    if not ts and type(mt.__index) == \"table\" then ts = mt.__index.__tostring end\n    if ts then\n      local ok, s = pcall(ts, v)\n      if ok and type(s) == \"string\" then return s end\n    end\n  end\n  local isArray = #v > 0\n  if isArray then\n    for i = 1, #v do if v[i] == nil then isArray = false break end end\n  end\n  local parts = {}\n  if isArray then\n    if #v == 0 then return \"{}\" end\n    for i = 1, #v do parts[i] = fmt(v[i], (depth or 0) + 1, seen) end\n    return \"{ \" .. table.concat(parts, \", \") .. \" }\"\n  end\n  local keys = {}\n  for k in pairs(v) do table.insert(keys, k) end\n  local function cmp(a, b)\n    if real_type(a) ~= real_type(b) then return real_type(a) < real_type(b) end\n    return real_tostring(a) < real_tostring(b)\n  end\n  table.sort(keys, cmp)\n  for _, k in ipairs(keys) do\n    table.insert(parts, \"[\" .. fmt(k, (depth or 0) + 1, seen) .. \"]=\" .. fmt(v[k], (depth or 0) + 1, seen))\n  end\n  return \"{ \" .. table.concat(parts, \", \") .. \" }\"\nend\n\nfunction print(...)\n  local n = select(\"#\", ...)\n  local parts = {}\n  for i = 1, n do parts[i] = fmt((select(i, ...))) end\n  _iotab(table.concat(parts, \"  \") .. \"\\n\")\nend\n\n-- ---- 2. Vector3 / Color3 / UDim2 (lightweight) ----\nVector3 = setmetatable({}, { __call = function(_, x, y, z) return Vector3.new(x, y, z) end })\nVector3.__index = Vector3\nfunction Vector3.new(x, y, z) return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0 }, Vector3) end\nfunction Vector3.__add(a, b) return Vector3.new(a.X + b.X, a.Y + b.Y, a.Z + b.Z) end\nfunction Vector3.__sub(a, b) return Vector3.new(a.X - b.X, a.Y - b.Y, a.Z - b.Z) end\nfunction Vector3.__mul(a, b) return Vector3.new(a.X * b, a.Y * b, a.Z * b) end\nfunction Vector3.__div(a, b) return Vector3.new(a.X / b, a.Y / b, a.Z / b) end\nfunction Vector3.__eq(a, b) return a.X == b.X and a.Y == b.Y and a.Z == b.Z end\nfunction Vector3.__tostring(v) return \"Vector3.new(\" .. v.X .. \", \" .. v.Y .. \", \" .. v.Z .. \")\" end\nfunction Vector3:Magnitude() return math.sqrt(self.X * self.X + self.Y * self.Y + self.Z * self.Z) end\nfunction Vector3:Dot(b) return self.X * b.X + self.Y * b.Y + self.Z * b.Z end\nfunction Vector3:Unit()\n  local m = self:Magnitude()\n  if m == 0 then return Vector3.new(0, 0, 0) end\n  return Vector3.new(self.X / m, self.Y / m, self.Z / m)\nend\nfunction Vector3:Lerp(b, a) return self + (b - self) * a end\nfunction Vector3:Cross(b) return Vector3.new(self.Y * b.Z - self.Z * b.Y, self.Z * b.X - self.X * b.Z, self.X * b.Y - self.Y * b.X) end\nVector3.zero = Vector3.new(0, 0, 0)\nVector3.one = Vector3.new(1, 1, 1)\n\n-- CFrame (position + orientation, teaching-grade)\nCFrame = setmetatable({}, { __call = function(_, ...) return CFrame.new(...) end })\nCFrame.__index = CFrame\nfunction CFrame.new(px, py, pz, r00, r01, r02, r10, r11, r12, r20, r21, r22)\n  local cf = setmetatable({}, CFrame)\n  cf.X, cf.Y, cf.Z = px or 0, py or 0, pz or 0\n  if r00 then\n    cf.R = { r00, r01, r02, r10, r11, r12, r20, r21, r22 }\n  else\n    cf.R = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }\n  end\n  return cf\nend\nfunction CFrame:__tostring()\n  return \"CFrame.new(\" .. math.floor(self.X * 1000) / 1000 .. \", \"\n    .. math.floor(self.Y * 1000) / 1000 .. \", \" .. math.floor(self.Z * 1000) / 1000 .. \")\"\nend\nfunction CFrame:P() return Vector3.new(self.X, self.Y, self.Z) end\nfunction CFrame:Position() return self:P() end\nfunction CFrame.lookAt(from, to)\n  local fwd = (to - from).Unit\n  local right = fwd:Dot(Vector3.new(0, 1, 0)) == 1 and Vector3.new(1, 0, 0)\n    or Vector3.new(0, 1, 0):Cross(fwd).Unit\n  local upv = right:Cross(fwd)\n  return CFrame.new(from.X, from.Y, from.Z,\n    right.X, upv.X, fwd.X,\n    right.Y, upv.Y, fwd.Y,\n    right.Z, upv.Z, fwd.Z)\nend\nfunction CFrame:RightVector() return Vector3.new(self.R[1], self.R[4], self.R[7]).Unit end\nfunction CFrame:UpVector() return Vector3.new(self.R[2], self.R[5], self.R[8]).Unit end\nfunction CFrame:LookVector() return Vector3.new(self.R[3], self.R[6], self.R[9]).Unit end\nfunction CFrame:Inverse() return CFrame.new(-self.X, -self.Y, -self.Z) end\nfunction CFrame:__mul(v)\n  if getmetatable(v) == Vector3 then\n    return Vector3.new(self.X + v.X, self.Y + v.Y, self.Z + v.Z)\n  end\n  if getmetatable(v) == CFrame then\n    return CFrame.new(self.X + v.X, self.Y + v.Y, self.Z + v.Z, table.unpack(self.R))\n  end\n  return self\nend\nfunction CFrame:PointToWorldSpace(v) return self * v end\nfunction CFrame:ToObjectSpace(v) return v - self:P() end\nfunction CFrame:Lerp(target, a)\n  return CFrame.new(\n    self.X + (target.X - self.X) * a,\n    self.Y + (target.Y - self.Y) * a,\n    self.Z + (target.Z - self.Z) * a)\nend\n\nVector3.Up = Vector3.new(0, 1, 0)\nVector3.Right = Vector3.new(1, 0, 0)\nVector3.LookVector = Vector3.new(0, 0, -1)\n\nColor3 = setmetatable({}, { __call = function(_, r, g, b) return Color3.new(r, g, b) end })\nColor3.__index = Color3\nfunction Color3.new(r, g, b) return setmetatable({ R = r, G = g, B = b }, Color3) end\nColor3.fromRGB = function(r, g, b) return Color3.new(r / 255, g / 255, b / 255) end\nfunction Color3:__tostring() return \"Color3.new(\" .. string.format(\"%d,%d,%d\", self.R * 255, self.G * 255, self.B * 255) .. \")\" end\n\nUDim2 = {}\nUDim2.__index = UDim2\nfunction UDim2.new(xScale, xOffset, yScale, yOffset)\n  return setmetatable({ X = { Scale = xScale or 0, Offset = xOffset or 0 }, Y = { Scale = yScale or 0, Offset = yOffset or 0 } }, UDim2)\nend\nUDim2.fromOffset = function(w, h) return UDim2.new(0, w, 0, h) end\nUDim2.fromScale = function(w, h) return UDim2.new(w, 0, h, 0) end\nUDim = {}\nUDim.__index = UDim\nfunction UDim.new(scale, offset) return setmetatable({ Scale = scale or 0, Offset = offset or 0 }, UDim) end\n\n-- ---- 3. mini event signals ----\nSignal = {}\nSignal.__index = Signal\nfunction Signal:Connect(fn)\n  table.insert(self._handlers, fn)\n  local conn = {\n    Connected = true,\n    fn = fn,\n    sig = self,\n    Disconnect = function()\n      conn.Connected = false\n      for i = #self._handlers, 1, -1 do\n        if self._handlers[i] == fn then table.remove(self._handlers, i) end\n      end\n    end,\n  }\n  if self._last then fn(unpack(self._last)) end\n  return conn\nend\nfunction Signal:Wait()\n  local args = self._last\n  if args then\n    self._last = nil\n    return unpack(args)\n  end\n  coroutine.yield(\"__wait_signal\")\n  args = self._last or {}\n  self._last = nil\n  return unpack(args)\nend\nfunction Signal:Fire(...)\n  local args = { ... }\n  self._last = args\n  for _, fn in ipairs(self._handlers) do\n    task.spawn(function()\n      fn(unpack(args))\n    end)\n  end\nend\nfunction newSignal()\n  return setmetatable({ _handlers = {}, _last = nil }, Signal)\nend\n\n-- ---- 4. Instance engine ----\nInstance = {}\nlocal constructors = {}\n\nlocal parentSetter\nlocal rawNew\nrawNew = function(class, props)\n  local t = {}\n  t._class = class\n  t._name = class\n  t._children = {}\n  t._parent = nil\n  setmetatable(t, {\n    __index = function(self, k)\n      local f = Instance[k]\n      if f ~= nil then return f end\n      if k == \"ClassName\" then return self._class end\n      if k == \"Name\" then return self._name end\n      if k == \"Parent\" then return self._parent end\n      if k == \"Children\" then return self._children end\n      return nil\n    end,\n    __newindex = function(self, k, v)\n      if k == \"ClassName\" then self._class = v\n      elseif k == \"Name\" then self._name = v\n      elseif k == \"Children\" then self._children = v\n      elseif k == \"Parent\" then parentSetter(self, v)\n      else rawset(self, k, v) end\n    end,\n    __tostring = function(self)\n      return self._class .. ' \"' .. self._name .. '\"'\n    end,\n  })\n  t.Changed = newSignal()\n  t.ChildAdded = newSignal()\n  t.DescendantAdded = newSignal()\n  for k, v in pairs(props or {}) do\n    if k == \"Name\" then t._name = v elseif k == \"Parent\" then parentSetter(t, v) else rawset(t, k, v) end\n  end\n  return t\nend\n\nparentSetter = function(self, v)\n  if self._parent and self._parent ~= v then\n    local p = self._parent\n    for i, c in ipairs(p._children) do\n      if c == self then table.remove(p._children, i) break end\n    end\n    self._parent = nil\n  end\n  if v then\n    v._children[#v._children + 1] = self\n    self._parent = v\n    v.ChildAdded:Fire(self)\n  end\n  return v\nend\n\nfunction Instance:GetChildren()\n  local t = {}\n  for _, c in ipairs(self._children) do table.insert(t, c) end\n  return t\nend\nfunction Instance:GetDescendants()\n  local out = {}\n  local function walk(n)\n    for _, c in ipairs(n._children) do\n      table.insert(out, c)\n      walk(c)\n    end\n  end\n  walk(self)\n  return out\nend\nfunction Instance:FindFirstChild(name, recursive)\n  for _, c in ipairs(self._children) do\n    if c._name == name then return c end\n  end\n  if recursive then\n    for _, c in ipairs(self._children) do\n      local r = c:FindFirstChild(name, true)\n      if r then return r end\n    end\n  end\n  return nil\nend\nfunction Instance:FindFirstChildOfClass(cc)\n  for _, c in ipairs(self._children) do if c._class == cc then return c end end\n  return nil\nend\nfunction Instance:WaitForChild(name, timeout)\n  local c = self:FindFirstChild(name)\n  if c then return c end\n  local tries = 0\n  repeat\n    task.wait(0.1)\n    tries = tries + 1\n    c = self:FindFirstChild(name)\n  until c or (timeout and tries * 0.1 > timeout)\n  return c\nend\nfunction Instance:Destroy()\n  if self._parent then parentSetter(self, nil) end\nend\nfunction Instance:IsA(cc) return self._class == cc end\nfunction Instance:IsDescendantOf(a)\n  local p = self._parent\n  while p do\n    if p == a then return true end\n    p = p._parent\n  end\n  return false\nend\nfunction Instance:Clone()\n  local c = rawNew(self._class, { Name = self._name })\n  for _, ch in ipairs(self._children) do\n    local gc = ch:Clone()\n    gc.Parent = c\n  end\n  return c\nend\nfunction Instance:GetFullName()\n  local stopper = self\n  local parts = {}\n  while stopper do\n    parts[#parts + 1] = stopper._name\n    stopper = stopper._parent\n  end\n  return table.concat(parts, \".\")\nend\n\n-- constructor registry for special classes\nconstructors.Part = function(props)\n  local p = rawNew(\"Part\", props)\n  p.Size = Vector3.new(1, 1, 1)\n  p.Anchored = (props and props.Anchored) or false\n  p.Position = Vector3.new(0, 0, 0)\n  p.Material = \"Plastic\"\n  p.Color = Color3.new(1, 1, 1)\n  return p\nend\nconstructors.MeshPart = constructors.Part\nconstructors.Humanoid = function(props)\n  local h = rawNew(\"Humanoid\", props)\n  h.Health, h.MaxHealth = 100, 100\n  h.WalkSpeed = 16\n  h.JumpPower = 50\n  return h\nend\nconstructors.Frame = function(props)\n  local f = rawNew(\"Frame\", props)\n  f.BackgroundColor3 = Color3.new(0.08, 0.08, 0.1)\n  f.BackgroundTransparency = 0.2\n  f.Size = UDim2.new(0, 200, 0, 100)\n  f.BorderSizePixel = 0\n  return f\nend\nconstructors.TextLabel = function(props)\n  local l = rawNew(\"TextLabel\", props)\n  l.Text = \"Label\"\n  l.TextColor3 = Color3.new(1, 1, 1)\n  l.BackgroundTransparency = 0.7\n  l.TextScaled = true\n  return l\nend\nconstructors.TextButton = function(props)\n  local b = rawNew(\"TextButton\", props)\n  b.Text = \"Button\"\n  b.TextColor3 = Color3.new(1, 1, 1)\n  b.BackgroundColor3 = Color3.new(0.2, 0.45, 0.9)\n  b.Activated = newSignal()\n  b.Size = UDim2.new(0, 160, 0, 40)\n  return b\nend\nconstructors.ScreenGui = function(props)\n  return rawNew(\"ScreenGui\", props)\nend\nconstructors.RemoteEvent = function(props)\n  local r = rawNew(\"RemoteEvent\", props)\n  r.OnClientEvent = newSignal()\n  r.OnServerEvent = newSignal()\n  r.FireServer = function(self, ...)\n    local parts = {}\n    for i = 1, select(\"#\", ...) do parts[i] = tostring(select(i, ...)) end\n    _iotab(\"[remote] \" .. self._name .. \":FireServer(\" .. table.concat(parts, \", \") .. \")\\n\")\n    -- real Roblox always appends the firing player; so do we\n    local who = game and game.Players and game.Players.LocalPlayer\n    self.OnServerEvent:Fire(who, ...)\n  end\n  r.FireClient = function(self, who, ...)\n    _iotab(\"[remote] \" .. self._name .. \"->\" .. tostring(who and who._name or \"?\") .. \"\\n\")\n    self.OnClientEvent:Fire(...)\n  end\n  r.FireAllClients = function(self, ...)\n    _iotab(\"[remote] \" .. self._name .. \" broadcast\\n\")\n    self.OnClientEvent:Fire(...)\n  end\n  return r\nend\nconstructors.BindableEvent = function(props)\n  local r = constructors.RemoteEvent(props)\n  r._class = \"BindableEvent\"\n  return r\nend\nconstructors.BindableFunction = function(props) return rawNew(\"BindableFunction\", props) end\n\nlocal ctor\nctor = function(class, props)\n  local c = constructors[class]\n  if c then return c(props) end\n  return rawNew(class, props)\nend\nInstance.new = ctor\n\n-- ---- 5. task / spawn / wait ----\ntask = {}\nfunction task.wait(n)\n  local t = (n and n > 0) and n or 0\n  coroutine.yield(t)\n  return t\nend\nfunction task.spawn(fn, ...)\n  return _spawn(fn, ...)\nend\nfunction task.defer(fn, ...) return task.spawn(fn, ...) end\nfunction task.delay(sec, fn, ...) return task.spawn(fn, ...) end\nfunction task.cancel() end\nfunction task.synchronize(fn, ...) return task.spawn(fn, ...) end\nfunction task.desynchronize(fn, ...) return task.spawn(fn, ...) end\nwait = task.wait\nspawn = task.spawn\ndelay = task.delay\n\nloadstring = loadstring or load\ngetgenv = getgenv or function() return _G end\ngetexecutorname = getexecutorname or function() return \"Lua Playground (sandbox)\" end\nidentifyexecutor = identifyexecutor or function() return \"lua-playground\", \"1.0\" end\nsetfpscap = setfpscap or function() end\ngetfpscap = getfpscap or function() return 60 end\n\n-- ---- executor API shims (harmless, teaching-grade) ----\ngetrawmetatable = getrawmetatable or function(t) return getmetatable(t) end\ngetrawget = getrawget or rawget\ngetrawset = getrawset or rawset\nhookmetamethod = hookmetamethod or function(mt, name, fn) return mt and mt[name] or function() end end\nhookfunction = hookfunction or function(fn, repl) return fn end\nclonefunction = clonefunction or function(fn) return fn end\nnewcclosure = newcclosure or function(fn) return fn end\niscclosure = iscclosure or function(fn) return false end\ncheckcaller = checkcaller or function() return true end\nprintidentity = printidentity or function() _iotab(\"Identity: 8 (Roblox)\\n\") end\ngetnamecallmethod = getnamecallmethod or function() return \"\" end\nsetreadonly = setreadonly or function(t, flag) end\nisreadonly = isreadonly or function(t) return false end\nsetclipboard = setclipboard or function(s) _iotab(\"[clipboard] set\\n\") end\ngetgc = getgc or function() return {} end\ngetreg = getreg or function() return setmetatable({}, { __tostring = function() return \"registry (hidden)\" end }) end\ngetupvalues = getupvalues or function(f) return {} end\ngetconstants = getconstants or function(f) return {} end\n\n-- ---- Luau math conveniences absent from Lua 5.3 ----\nmath.atan2 = math.atan2 or function(y, x) return math.atan(y, x) end\nmath.clamp = math.clamp or function(x, a, b) return math.min(math.max(x, a), b) end\nmath.round = math.round or function(x) return math.floor(x + 0.5) end\nmath.sign = math.sign or function(x) return x > 0 and 1 or (x < 0 and -1 or 0) end\nmath.noise = math.noise or function() return 0 end\ntable.find = table.find or function(t, v)\n  for i = 1, #t do if t[i] == v then return i end end\n  return nil\nend\ntable.clear = table.clear or function(t) for k in pairs(t) do t[k] = nil end end\n\n-- ---- 6. game, services, workspace ----\nlocal services = {}\nlocal game = rawNew(\"Game\", { Name = \"game\" })\n\nlocal function makeService(name)\n  local s = rawNew(\"Service\", { Name = name })\n  services[name] = s\n  return s\nend\nlocal function getService(name)\n  if not services[name] then makeService(name) end\n  return services[name]\nend\n\n-- Players\nlocal Players = getService(\"Players\")\nlocal player = rawNew(\"Player\", { Name = \"DemoUser\", DisplayName = \"You\", UserId = 588447 })\nPlayers.LocalPlayer = player\nplayer.Character = rawNew(\"Model\", { Name = \"Character\" })\nplayer.Humanoid = ctor(\"Humanoid\", { Name = \"Humanoid\" })\nplayer.Humanoid.Parent = player.Character\nplayer.Backpack = rawNew(\"Model\", { Name = \"Backpack\" })\nplayer.PlayerGui = rawNew(\"ScreenGui\", { Name = \"PlayerGui\" })\nplayer.CharacterAdded = newSignal()\nplayer.CharacterRemoving = newSignal()\nplayer.CharacterAppearanceLoaded = newSignal()\nlocal function makeMouse()\n  local m = rawNew(\"Mouse\", { Name = \"Mouse\" })\n  m.X, m.Y = 0, 0\n  m.Hit = CFrame.new(0, 0, 0)\n  m.Target = nil\n  m.UnitRay = { Origin = Vector3.new(0, 0, 0), Direction = Vector3.new(0, 0, -1) }\n  m.Button1Down = newSignal()\n  m.Button1Up = newSignal()\n  m.Move = newSignal()\n  m.KeyDown = newSignal()\n  m.KeyUp = newSignal()\n  return m\nend\nrawset(player, \"GetMouse\", function(self) return makeMouse() end)\nrawset(player, \"GetPlayerGui\", function(self) return self.PlayerGui end)\nrawset(player, \"GetCharacterAppearanceAsync\", function(self) return {} end)\nrawset(player, \"Kick\", function(self, msg)\n  _iotab(\"[player] \" .. self._name .. \" kicked: \" .. tostring(msg) .. \"\\n\")\nend)\nPlayers.playerAdded = newSignal()\nPlayers.playerRemoving = newSignal()\nPlayers.GetPlayers = function() return { player } end\nPlayers.GetPlayerFromCharacter = function(self, ch) return player end\nPlayers.GetNameFromUserIdAsync = function(self, id) return \"Player\" .. tostring(id) end\nPlayers.GetUserIdFromNameAsync = function(self, name) return 1 end\n\n-- Workspace\nlocal Workspace = getService(\"Workspace\")\nlocal base = ctor(\"Part\", { Name = \"Baseplate\", Anchored = true })\nbase.Size = Vector3.new(512, 1, 512)\nbase.Position = Vector3.new(0, 0, 0)\nbase.Parent = Workspace\nWorkspace.Gravity = 196.2\nWorkspace.StreamingEnabled = false\nWorkspace.Raycast = function() return nil end\nWorkspace.FindPartOnRay = function() return nil end\n\n-- RunService\nlocal RunService = getService(\"RunService\")\nRunService.Heartbeat = newSignal()\nRunService.RenderStepped = RunService.Heartbeat\nRunService.Stepped = newSignal()\nRunService.PreSimulation = newSignal()\nRunService.PostSimulation = newSignal()\nRunService.BindToRenderStep = function(self, name, priority, fn)\n  return RunService.Heartbeat:Connect(fn)\nend\nRunService.UnbindFromRenderStep = function(self, name) end\nRunService.IsClient = function() return true end\nRunService.IsStudio = function() return true end\nRunService.IsServer = function() return true end\nRunService.IsRunning = function() return true end\n-- engine drives RunService.Heartbeat while a run has pending coroutines\n\n-- Camera on workspace\nlocal sharedCamera = ctor(\"Camera\", { Name = \"Camera\" })\nsharedCamera.CFrame = CFrame.new(0, 12, -20)\nsharedCamera.Focus = CFrame.new(0, 0, 0)\nsharedCamera.ViewportSize = Vector3.new(1280, 720, 0)\nWorkspace.CurrentCamera = sharedCamera\n\n-- ReplicatedStorage\nlocal ReplicatedStorage = getService(\"ReplicatedStorage\")\nlocal remotes = rawNew(\"Folder\", { Name = \"Remotes\" })\nremotes.Parent = ReplicatedStorage\nlocal eventsFolder = rawNew(\"Folder\", { Name = \"Events\" })\neventsFolder.Parent = ReplicatedStorage\n\n-- HttpService\nlocal HttpService = getService(\"HttpService\")\nHttpService.HttpEnabled = true\n\nlocal jsonEsc = function(c)\n  if c == '\"' then return '\\\\\"' end\n  if c == \"\\\\\" then return \"\\\\\\\\\" end\n  if c == \"\\n\" then return \"\\\\n\" end\n  if c == \"\\t\" then return \"\\\\t\" end\n  if c == \"\\r\" then return \"\\\\r\" end\n  if string.byte(c) < 32 then return string.format(\"\\\\u%04x\", string.byte(c)) end\n  return c\nend\nlocal function jenc(v, seen)\n  local t = real_type(v)\n  if t == \"nil\" then return \"null\" end\n  if t == \"boolean\" then return v and \"true\" or \"false\" end\n  if t == \"number\" then\n    if v ~= v or v == math.huge or v == -math.huge then return \"null\" end\n    if v == math.floor(v) and math.abs(v) < 1e15 then return string.format(\"%d\", v) end\n    return string.format(\"%.8g\", v)\n  end\n  if t == \"string\" then return '\"' .. v:gsub('[%z\\1-\\31\"\\\\%c]', jsonEsc) .. '\"' end\n  if t ~= \"table\" then return \"null\" end\n  if seen[v] then return \"null\" end\n  seen[v] = true\n  local out = {}\n  local count = 0\n  local max = 0\n  for k in pairs(v) do count = count + 1 if real_type(k) == \"number\" and k > max then max = k end end\n  if count > 0 and max == count then\n    for i = 1, count do out[i] = jenc(v[i], seen) end\n    return \"[\" .. table.concat(out, \",\") .. \"]\"\n  end\n  local keys = {}\n  for k in pairs(v) do keys[#keys + 1] = k end\n  table.sort(keys, function(a, b)\n    if real_type(a) ~= real_type(b) then return real_type(a) < real_type(b) end\n    return real_tostring(a) < real_tostring(b)\n  end)\n  for i, k in ipairs(keys) do\n    out[i] = jenc(k, seen) .. \":\" .. jenc(v[k], seen)\n  end\n  return \"{\" .. table.concat(out, \",\") .. \"}\"\nend\nfunction HttpService:JSONEncode(v) return jenc(v, {}) end\nfunction HttpService:JSONModuleCodec() return {} end\nfunction HttpService:JSONDecode(s) return nil end\nfunction HttpService:GenerateGUID(useCurlyBraces)\n  local function h() return string.format(\"%08x\", math.random(0, 0xffffffff)) end\n  local g = h() .. \"-\" .. string.sub(h(), 1, 4) .. \"-\" .. string.sub(h(), 1, 4) .. \"-\" .. string.sub(h(), 1, 4) .. \"-\" .. h()\n  return useCurlyBraces and (\"{\" .. g .. \"}\") or g\nend\n\n-- StarterGui / Debris / TextChatService / TweenService\nlocal StarterGui = getService(\"StarterGui\")\nStarterGui.SetCore = function(self, k, v)\n  _iotab(\"[StarterGui] SetCore(\" .. tostring(k) .. \")\\n\")\nend\nStarterGui.SetCoreGuiEnabled = function() end\nlocal Debris = getService(\"Debris\")\nDebris.AddItem = function() end\nlocal TextChatService = getService(\"TextChatService\")\nTextChatService.ChatVersion = \"TextChatService\"\nlocal TweenService = getService(\"TweenService\")\nTweenService.Create = function() return { Play = function() end, Cancel = function() end } end\nlocal Lighting = getService(\"Lighting\")\nLighting.Brightness = 1\nLighting.ClockTime = 14\n\ngame.GetService = function(self, n) return getService(n) end\ngame.GetObjects = function(self, s) return {} end\nfunction game:HttpGet(url, noCache)\n  _iotab(\"[sandbox] HttpGet(\" .. tostring(url) .. \") blocked\\n\")\n  return \"-- fake fetched: \" .. tostring(url)\nend\nfunction game:HttpGetAsync(url) return game:HttpGet(url) end\nfunction game:HttpPost(url, body) _iotab(\"[sandbox] HttpPost blocked\\n\") return \"\" end\ngame.Players = Players\ngame.Workspace = Workspace\ngame.ReplicatedStorage = ReplicatedStorage\ngame.HttpService = HttpService\ngame.Lighting = Lighting\ngame.FindFirstChild = Instance.FindFirstChild\ngame.WaitForChild = Instance.WaitForChild\n-- dot access for game/services handled by Players/Workspace globals already\n\n-- expose friends\nworkspace = Workspace\n\n-- ---- 7. SandboxSim: the visual mini-game world ----\n-- Lua holds the state, the engine renders it to a canvas next to the\n-- output box and sends clicks back here. Like a tiny anime-sim.\nSandboxSim = {}\nlocal simWorld = {\n  visible = false,\n  player = { x = 0, z = 0, angle = 0, color = \"#4fc3f7\", name = \"You\", hp = 100, maxhp = 100 },\n  mobs = {},\n  coins = {},\n  gui = {},\n}\nlocal simListeners = {}\nlocal simMobSeq = 0\n\nfunction SandboxSim.show()\n  simWorld.visible = true\nend\nfunction SandboxSim.hide()\n  simWorld.visible = false\nend\nfunction SandboxSim.setPlayer(x, z, angle)\n  simWorld.player.x = x or 0\n  simWorld.player.z = z or 0\n  if angle then simWorld.player.angle = angle end\nend\nfunction SandboxSim.getPlayer()\n  return simWorld.player.x, simWorld.player.z\nend\nfunction SandboxSim.setPlayerColor(c) simWorld.player.color = c end\nfunction SandboxSim.setPlayerName(n) simWorld.player.name = n end\nfunction SandboxSim.setHealth(h, mh)\n  simWorld.player.hp = h\n  if mh then simWorld.player.maxhp = mh end\nend\nfunction SandboxSim.addMob(x, z, hp, color, name)\n  simMobSeq = simMobSeq + 1\n  local m = { id = simMobSeq, x = x or 0, z = z or 0, hp = hp or 10, maxhp = hp or 10, color = color or \"#e57373\", name = name or \"mob\" }\n  simWorld.mobs[#simWorld.mobs + 1] = m\n  return m\nend\nfunction SandboxSim.removeMob(i) table.remove(simWorld.mobs, i) end\nfunction SandboxSim.getMobs() return simWorld.mobs end\nfunction SandboxSim.addCoin(x, z)\n  simWorld.coins[#simWorld.coins + 1] = { x = x or 0, z = z or 0 }\nend\nfunction SandboxSim.removeCoin(i) table.remove(simWorld.coins, i) end\nfunction SandboxSim.getCoins() return simWorld.coins end\nfunction SandboxSim.setGui(id, g)\n  if not g then simWorld.gui[id] = nil return end\n  g.id = id\n  simWorld.gui[id] = g\nend\nfunction SandboxSim.removeGui(id) simWorld.gui[id] = nil end\nfunction SandboxSim.clearVisuals()\n  simWorld.mobs = {}\n  simWorld.coins = {}\n  simWorld.gui = {}\nend\nfunction SandboxSim.on(evt, fn) simListeners[evt] = fn end\nfunction SandboxSim.off(evt) simListeners[evt] = nil end\n\n-- bridge used by the JS engine (registered below in C via these globals)\nfunction _dispatchEvent(t, a, b)\n  local f = simListeners[t]\n  if f then return f(a, b) end\nend\nfunction _frameJSON()\n  return HttpService:JSONEncode(simWorld)\nend\nfunction _heartbeatCallback(dt)\n  RunService.Heartbeat:Fire(dt or 0.016)\nend\n\n-- ---- 8. publish globals ----\n_G.game = game\n_G.workspace = Workspace\n_G.Players = Players\n_G.ReplicatedStorage = ReplicatedStorage\n_G.RunService = RunService\n_G.Lighting = Lighting\n_G.HttpService = HttpService\n_G.Instance = Instance\n_G.newSignal = newSignal\n_G.Vector3 = Vector3\n_G.Color3 = Color3\n_G.CFrame = CFrame\n_G.UDim2 = UDim2\n_G.UDim = UDim\n_G.SandboxSim = SandboxSim\n_G.task = task\n_G.wait = wait\n_G.spawn = spawn\n_G.delay = delay\n_G.unpack = unpack\n\n-- help text\nprint(\"== Lua Playground sandbox ready ==\")\nprint(\"Themes: print, tables, functions, coroutines, events\")\nprint(\"Fake Roblox: game, workspace, Players, Instance, Vector3, CFrame, task\")\nprint(\"Visual sim: SandboxSim.show() renders a playable mini-game below\")";
 
 /* ============================================================
    1. RUNNER (fengari + coroutine scheduler)
+   One fresh Lua state per run. The console keeps ONE state so
+   your variables survive between lines, but we drop leftover
+   coroutines before every line so stale output never bleeds in.
    ============================================================ */
 var F = window.fengari;
 var lua = F.lua, laux = F.lauxlib;
 
-var state = null;
-var pending = [];          // {ref, TL, due, out}
-var tickTimer = null;
-var liveOut = null;        // where Lua print() currently goes
-var runStart = 0;          // timestamp of current resume
+var ctxByState = new Map();   // lua main state -> run context
+var activeCtx = null;         // context whose Lua is currently executing
+var pending = [];             // {ref, TL, due, st}
+var pumpTimer = null;
+var simTimer = null;
+var consoleState = null;
+var runStart = 0;
 
 function watchdog(L2) {
   if (now() - runStart > 3000) {
@@ -657,10 +925,11 @@ function setHook(TL) {
 }
 
 function feedOutput(s) {
-  if (!liveOut) return;
-  liveOut.classList.add("show");
-  liveOut.textContent += s;
-  liveOut.scrollTop = liveOut.scrollHeight;
+  if (!activeCtx || !activeCtx.out) return;
+  var out = activeCtx.out;
+  out.classList.add("show");
+  out.textContent += s;
+  out.scrollTop = out.scrollHeight;
 }
 
 function luaErrStr(L2, idx) {
@@ -671,18 +940,29 @@ function luaErrStr(L2, idx) {
   return "unknown lua error";
 }
 
-function releaseRef(ref) {
-  if (!ref) return;
-  try { laux.luaL_unref(state, lua.LUA_REGISTRYINDEX, ref); } catch (e) {}
+function releaseRef(st, ref) {
+  if (!ref || !st) return;
+  try { laux.luaL_unref(st, lua.LUA_REGISTRYINDEX, ref); } catch (e) {}
 }
 
-function resumeRef(ref, TL, nargs, out, finishCb) {
-  liveOut = out;
+function pendingFor(st) {
+  for (var i = 0; i < pending.length; i++) if (pending[i].st === st) return true;
+  return false;
+}
+
+function startPump() { if (!pumpTimer) pumpTimer = setInterval(tickAll, 30); }
+function stopPump() { if (pumpTimer) { clearInterval(pumpTimer); pumpTimer = null; } }
+function startSims() { if (!simTimer) simTimer = setInterval(simTick, 66); }
+function stopSims() { if (simTimer) { clearInterval(simTimer); simTimer = null; } }
+
+function resumeRef(ref, TL, nargs, st, finishCb) {
+  var ctx = ctxByState.get(st);
+  activeCtx = ctx;
   runStart = now();
   setHook(TL);
   var res;
   try {
-    res = lua.lua_resume(TL, state, nargs);
+    res = lua.lua_resume(TL, st, nargs);
   } catch (e) {
     res = lua.LUA_ERRRUN;
     lua.lua_pushliteral(TL, "JS engine error: " + ((e && e.message) || String(e)));
@@ -695,24 +975,25 @@ function resumeRef(ref, TL, nargs, out, finishCb) {
       if (typeof v === "number") seconds = v > 0 ? v : 0.01;
     }
     lua.lua_settop(TL, 0);
-    pending.push({ ref: ref, TL: TL, due: now() + seconds * 1000, out: out });
-    if (!tickTimer) tickTimer = setInterval(tickAll, 30);
+    pending.push({ ref: ref, TL: TL, due: now() + seconds * 1000, st: st });
+    startPump();
+    startSims();
   } else if (res === 0) {
     lua.lua_settop(TL, 0);
-    releaseRef(ref);
+    releaseRef(st, ref);
     if (finishCb) finishCb();
   } else {
     var msg = luaErrStr(TL, -1);
     lua.lua_settop(TL, 0);
-    releaseRef(ref);
-    if (liveOut) {
-      liveOut.classList.add("err");
-      liveOut.textContent += "!! " + msg + "\n";
-      liveOut.scrollTop = liveOut.scrollHeight;
+    releaseRef(st, ref);
+    if (activeCtx && activeCtx.out) {
+      activeCtx.out.classList.add("err");
+      activeCtx.out.textContent += "!! " + msg + "\n";
+      activeCtx.out.scrollTop = activeCtx.out.scrollHeight;
     }
     if (finishCb) finishCb();
   }
-  liveOut = null;
+  activeCtx = null;
 }
 
 function tickAll() {
@@ -721,21 +1002,35 @@ function tickAll() {
   for (var i = pending.length - 1; i >= 0; i--) {
     if (pending[i].due <= t) { due.push(pending[i]); pending.splice(i, 1); }
   }
-  if (!pending.length && tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  if (!pending.length) stopPump();
   for (var k = 0; k < due.length; k++) {
     var job = due[k];
-    resumeRef(job.ref, job.TL, 0, job.out, null);
+    resumeRef(job.ref, job.TL, 0, job.st, null);
   }
 }
 
-function releaseAllThreads() {
-  pending.forEach(function (p) { releaseRef(p.ref); });
-  pending = [];
-  if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+function releaseAllForState(st) {
+  for (var i = pending.length - 1; i >= 0; i--) {
+    if (pending[i].st === st) {
+      releaseRef(st, pending[i].ref);
+      pending.splice(i, 1);
+    }
+  }
+  if (!pending.length) stopPump();
 }
 
-/* create fresh sandbox state */
-function newState() {
+function killAllRuns() {
+  ctxByState.forEach(function (ctx, L) {
+    releaseAllForState(L);
+    if (ctx.gview) { ctx.gview.style.display = "none"; ctx.gviewShown = false; }
+  });
+  ctxByState.clear();
+  stopPump();
+  stopSims();
+}
+
+/* create a fresh sandbox state, loading the prelude inside */
+function newState(ctx) {
   var L = laux.luaL_newstate();
   F.lualib.luaL_openlibs(L);
 
@@ -751,9 +1046,9 @@ function newState() {
   lua.lua_setglobal(L, "_iotab");
 
   lua.lua_pushcfunction(L, function (L2) {
-    /* stack: [fn, args...]  ->  [fn, args..., thread, fn, args...] -> then xmove */
+    /* stack: [fn, args...] -> create + load thread with fn+args */
     var fnAt = lua.lua_gettop(L2);
-    var thread = lua.lua_newthread(L2);          // [fn, args..., thread]  thread at fnAt+1
+    var thread = lua.lua_newthread(L2);          // [fn, args..., thread]
     var threadIdx = fnAt + 1;
     lua.lua_pushvalue(L2, 1);
     lua.lua_xmove(L2, thread, 1);
@@ -763,7 +1058,7 @@ function newState() {
     }
     var argCount = fnAt - 1;
     var ref = laux.luaL_ref(L2, lua.LUA_REGISTRYINDEX, threadIdx);
-    resumeRef(ref, thread, argCount, liveOut, null);
+    resumeRef(ref, thread, argCount, activeCtx.L, null);
     lua.lua_pushinteger(L2, 0);
     return 1;
   });
@@ -773,29 +1068,33 @@ function newState() {
   if (r !== 0) {
     throw new Error("prelude failed to load: " + luaErrStr(L, -1));
   }
+  activeCtx = ctx;
   var st = lua.lua_pcallk(L, 0, 0, 0, 0, undefined);
+  activeCtx = null;
   if (st !== 0) {
     throw new Error("prelude failed to run: " + luaErrStr(L, -1));
   }
   return L;
 }
 
-/* run arbitrary Lua code as a coroutine so task.wait() works.
-   If keepOutput is true the target box isn't cleared (console mode). */
-function runChunk(code, outEl, statusEl, keepOutput) {
-  if (!state) state = newState();
-  liveOut = outEl;
+/* run arbitrary Lua code on an already-registered state */
+function runChunkOnState(L, code, outEl, statusEl, keepOutput) {
+  var ctx = ctxByState.get(L);
+  if (!ctx) { ctx = { L: L }; ctxByState.set(L, ctx); }
+  ctx.out = outEl;
+  ctx.statusEl = statusEl || null;
+  ctx.keep = !!keepOutput;
   if (!keepOutput) {
+    ensureGview(ctx);
     outEl.classList.remove("err");
     outEl.classList.add("show");
     outEl.textContent = "";
   }
   var t0 = now();
-  var r = laux.luaL_loadbuffer(state, F.to_luastring(code), code.length, "=lesson");
+  var r = laux.luaL_loadbuffer(L, F.to_luastring(code), code.length, "=lesson");
   if (r !== 0) {
-    var err = luaErrStr(state, -1);
-    lua.lua_settop(state, 0);
-    liveOut = null;
+    var err = luaErrStr(L, -1);
+    lua.lua_settop(L, 0);
     outEl.classList.add("err");
     outEl.classList.add("show");
     outEl.textContent += "!! " + err + "\n";
@@ -803,17 +1102,16 @@ function runChunk(code, outEl, statusEl, keepOutput) {
     if (statusEl) { statusEl.textContent = "error"; statusEl.classList.add("show"); statusEl.style.color = "#f87171"; }
     return;
   }
-  /* state stack: [chunk]. make a thread, move the chunk into it. */
-  var thread = lua.lua_newthread(state);   // [chunk, thread]
-  lua.lua_pushvalue(state, 1);             // [chunk, thread, chunk]
-  lua.lua_xmove(state, thread, 1);         // [chunk, thread]  -> thread stack: [chunk]
-  var ref = laux.luaL_ref(state, lua.LUA_REGISTRYINDEX, 2);  // ref the thread (pop it)
+  var thread = lua.lua_newthread(L);
+  lua.lua_pushvalue(L, 1);
+  lua.lua_xmove(L, thread, 1);
+  var ref = laux.luaL_ref(L, lua.LUA_REGISTRYINDEX, 2);
   if (statusEl) {
     statusEl.classList.add("show");
     statusEl.textContent = "running…";
     statusEl.style.color = "#fbbf24";
   }
-  resumeRef(ref, thread, 0, outEl, function () {
+  resumeRef(ref, thread, 0, L, function () {
     if (statusEl) {
       statusEl.textContent = "finished in " + Math.max(0, Math.round(now() - t0)) + "ms";
       statusEl.style.color = "#22c55e";
@@ -821,11 +1119,273 @@ function runChunk(code, outEl, statusEl, keepOutput) {
   });
 }
 
+/* public: run a lesson box (fresh sandbox, kills everything else) */
+function runChunk(code, outEl, statusEl, keepOutput) {
+  killAllRuns();
+  var ctx = { L: null, out: outEl, statusEl: statusEl || null, keep: !!keepOutput };
+  var L;
+  try {
+    L = newState(ctx);
+  } catch (e) {
+    outEl.classList.add("err");
+    outEl.classList.add("show");
+    outEl.textContent = "!! boot failed: " + (e && e.message) + "\n";
+    if (statusEl) { statusEl.textContent = "error"; statusEl.classList.add("show"); }
+    return;
+  }
+  ctx.L = L;
+  ctxByState.set(L, ctx);
+  runChunkOnState(L, code, outEl, statusEl, keepOutput);
+}
+
+/* public: console line (persistent console state, stale threads dropped) */
+function runConsole(code) {
+  killAllRuns();
+  if (!consoleState) {
+    var ctx = { L: null, out: $("console-screen"), keep: true };
+    try { consoleState = newState(ctx); ctx.L = consoleState; }
+    catch (e) { $("console-screen").textContent = "boot failed: " + (e && e.message); return; }
+    ctxByState.set(consoleState, ctx);
+  } else {
+    releaseAllForState(consoleState);
+    ctxByState.set(consoleState, { L: consoleState, out: $("console-screen"), keep: true });
+  }
+  runChunkOnState(consoleState, code, $("console-screen"), null, true);
+}
+
 /* ============================================================
-   2. SYNTAX HIGHLIGHTER
+   2. SandboxSim: render the Lua world to a canvas + clickable HUD
+   ============================================================ */
+function ensureGview(ctx) {
+  if (ctx.gview) return ctx.gview;
+  var out = ctx.out;
+  if (!out || !out.parentElement) return null;
+
+  var wrap = document.createElement("div");
+  wrap.className = "gview";
+  wrap.style.display = "none";
+  var cv = document.createElement("canvas");
+  cv.width = 480; cv.height = 300;
+  var hud = document.createElement("div");
+  hud.className = "ghud";
+  wrap.appendChild(cv);
+  wrap.appendChild(hud);
+
+  cv.addEventListener("click", function (e) {
+    ctx.touched = true;
+    var r = cv.getBoundingClientRect();
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var x = (px / r.width) * 480, y = (py / r.height) * 300;
+    emitEvent(ctx, "click", round2((x / 480) * 24 - 12), round2((y / 300) * 15 - 7.5));
+  });
+
+  out.parentElement.insertBefore(wrap, out);
+  ctx.gview = wrap;
+  ctx.cv = cv;
+  ctx.g2d = cv.getContext("2d");
+  ctx.hud = hud;
+  ctx.hudEls = {};
+  ctx.gviewShown = false;
+  ctx.world = null;
+  ctx.touched = false;
+  return wrap;
+}
+
+function pollWorld(ctx) {
+  try {
+    activeCtx = ctx;
+    lua.lua_getglobal(ctx.L, "_frameJSON");
+    var rc = lua.lua_pcallk(ctx.L, 0, 1, 0, 0, undefined);
+    if (rc !== 0) { lua.lua_settop(ctx.L, 0); return ctx.world || null; }
+    var s = lua.lua_tojsstring(ctx.L, -1);
+    lua.lua_settop(ctx.L, 0);
+    if (!s) return null;
+    return JSON.parse(s);
+  } catch (e) {
+    return ctx.world || null;
+  } finally {
+    activeCtx = null;
+  }
+}
+
+function fireHeartbeat(L, dt) {
+  activeCtx = ctxByState.get(L);
+  runStart = now();
+  try {
+    lua.lua_getglobal(L, "_heartbeatCallback");
+    if (lua.lua_type(L, -1) !== lua.LUA_TFUNCTION) { lua.lua_settop(L, 0); return; }
+    lua.lua_pushnumber(L, dt);
+    var rc = lua.lua_pcallk(L, 1, 0, 0, 0, undefined);
+    if (rc !== 0) {
+      var m = luaErrStr(L, -1);
+      if (activeCtx && activeCtx.out) {
+        activeCtx.out.classList.add("err");
+        activeCtx.out.textContent += "!! " + m + "\n";
+        activeCtx.out.scrollTop = activeCtx.out.scrollHeight;
+      }
+    }
+    lua.lua_settop(L, 0);
+  } catch (e) {
+    try { lua.lua_settop(L, 0); } catch (e2) {}
+  } finally {
+    activeCtx = null;
+  }
+}
+
+function emitEvent(ctx, type, a, b) {
+  try {
+    activeCtx = ctx;
+    lua.lua_getglobal(ctx.L, "_dispatchEvent");
+    lua.lua_pushliteral(ctx.L, type);
+    if (typeof a === "number") lua.lua_pushnumber(ctx.L, a); else lua.lua_pushliteral(ctx.L, String(a == null ? "" : a));
+    if (typeof b === "number") lua.lua_pushnumber(ctx.L, b); else lua.lua_pushliteral(ctx.L, String(b == null ? "" : b));
+    var rc = lua.lua_pcallk(ctx.L, 3, 0, 0, 0, undefined);
+    if (rc !== 0) {
+      var m = luaErrStr(ctx.L, -1);
+      lua.lua_settop(ctx.L, 0);
+      if (ctx.out) { ctx.out.classList.add("err"); ctx.out.textContent += "!! " + m + "\n"; ctx.out.scrollTop = ctx.out.scrollHeight; }
+    } else {
+      lua.lua_settop(ctx.L, 0);
+    }
+  } catch (e) {
+    try { lua.lua_settop(ctx.L, 0); } catch (e2) {}
+  } finally {
+    activeCtx = null;
+  }
+}
+
+var lastSimTs = now();
+
+function simTick() {
+  var t = now();
+  var dt = Math.min(0.1, (t - lastSimTs) / 1000);
+  lastSimTs = t;
+  var any = false;
+
+  ctxByState.forEach(function (ctx, L) {
+    if (!ctx.gview) return;
+    var live = pendingFor(L);
+    var show = ctx.world && ctx.world.visible;
+    if (!live && !show) return;
+    any = true;
+    if (live) fireHeartbeat(L, dt);
+    var world = pollWorld(ctx);
+    if (world) renderWorld(ctx, world);
+  });
+
+  if (!any) stopSims();
+}
+
+function renderWorld(ctx, world) {
+  var gv = ctx.gview;
+  if (!gv) return;
+  gv.style.display = "block";
+  ctx.gviewShown = true;
+  ctx.world = world;
+
+  var W = 480, H = 300, g = ctx.g2d;
+  function px(wx) { return ((wx + 12) / 24) * W; }
+  function py(wz) { return ((wz + 7.5) / 15) * H; }
+
+  g.fillStyle = "#0f1410";
+  g.fillRect(0, 0, W, H);
+
+  g.lineWidth = 1;
+  for (var i = -12; i <= 12; i++) {
+    g.strokeStyle = (i % 4 === 0) ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.04)";
+    g.beginPath(); g.moveTo(px(i) + 0.5, 0); g.lineTo(px(i) + 0.5, H); g.stroke();
+  }
+  for (var j = -7; j <= 7; j++) {
+    g.strokeStyle = "rgba(255,255,255,0.05)";
+    g.beginPath(); g.moveTo(0, py(j) + 0.5); g.lineTo(W, py(j) + 0.5); g.stroke();
+  }
+  g.strokeStyle = "rgba(255,255,255,0.35)";
+  g.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+  var coins = world.coins || [];
+  g.fillStyle = "#ffd54f";
+  for (var c = 0; c < coins.length; c++) {
+    var cx = px(coins[c].x), cy = py(coins[c].z);
+    g.beginPath();
+    g.moveTo(cx, cy - 5); g.lineTo(cx + 4, cy); g.lineTo(cx, cy + 5); g.lineTo(cx - 4, cy);
+    g.closePath(); g.fill();
+  }
+
+  var mobs = world.mobs || [];
+  for (var m = 0; m < mobs.length; m++) {
+    var mob = mobs[m], mx = px(mob.x), my = py(mob.z);
+    g.fillStyle = mob.color || "#e57373";
+    g.beginPath(); g.arc(mx, my, 11, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "rgba(0,0,0,0.55)"; g.lineWidth = 2; g.stroke();
+    var bw = 22, bh = 3;
+    g.fillStyle = "#23232c"; g.fillRect(mx - bw / 2, my - 20, bw, bh);
+    var frac = Math.max(0, Math.min(1, (mob.hp || 0) / (mob.maxhp || 1)));
+    g.fillStyle = frac > 0.35 ? "#4ade80" : "#f87171";
+    g.fillRect(mx - bw / 2, my - 20, bw * frac, bh);
+  }
+
+  var p = world.player || {};
+  var pw = px(p.x || 0), ph = py(p.z || 0);
+  g.fillStyle = p.color || "#4fc3f7";
+  g.beginPath(); g.arc(pw, ph, 12, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "#ffffff"; g.lineWidth = 2; g.stroke();
+  var rad = (p.angle || 0) * Math.PI / 180;
+  var vx = Math.sin(rad), vz = -Math.cos(rad);
+  g.strokeStyle = "#ffffff"; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(pw, ph); g.lineTo(pw + vx * 15, ph + vz * 15); g.stroke();
+  g.fillStyle = "#ffffff"; g.font = "bold 11px sans-serif"; g.textAlign = "center";
+  g.fillText(p.name || "You", pw, ph - 20);
+  var fw = 26, fh = 3;
+  g.fillStyle = "#23232c"; g.fillRect(pw - fw / 2, ph + 16, fw, fh);
+  var pf = Math.max(0, Math.min(1, (p.hp || 0) / (p.maxhp || 1)));
+  g.fillStyle = pf < 0.35 ? "#f87171" : "#4ade80";
+  g.fillRect(pw - fw / 2, ph + 16, fw * pf, fh);
+
+  if (!ctx.touched) {
+    g.fillStyle = "rgba(255,255,255,0.4)";
+    g.font = "12px sans-serif";
+    g.fillText("click canvas to walk · click a red mob to fight", W / 2, 16);
+  }
+
+  var gui = world.gui || {};
+  var seen = {};
+  for (var id in gui) {
+    seen[id] = true;
+    var w = gui[id];
+    var d = ctx.hudEls[id];
+    if (!d) {
+      d = document.createElement("div");
+      d.className = "gbtn";
+      ctx.hud.appendChild(d);
+      ctx.hudEls[id] = d;
+      (function (did) {
+        d.addEventListener("click", function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          emitEvent(ctx, "gui", String(did), "");
+        });
+      })(id);
+    }
+    if (w.hide) { d.style.display = "none"; continue; }
+    d.style.display = "flex";
+    d.style.left = (w.x * 100) + "%";
+    d.style.top = (w.y * 100) + "%";
+    d.style.width = (w.w * 100) + "%";
+    d.style.height = (w.h * 100) + "%";
+    d.style.background = w.color || "rgba(38,50,96,0.92)";
+    d.style.color = w.textColor || "#ffffff";
+    d.style.fontSize = Math.max(10, Math.min(14, w.h * 100 * 0.34)) + "px";
+    d.innerHTML = esc(w.text == null ? id : w.text).replace(/\n/g, "<br>");
+  }
+  for (var hid in ctx.hudEls) {
+    if (!seen[hid]) { try { ctx.hud.removeChild(ctx.hudEls[hid]); } catch (e) {} delete ctx.hudEls[hid]; }
+  }
+}
+
+/* ============================================================
+   3. SYNTAX HIGHLIGHTER
    ============================================================ */
 var KEYWORDS = ["and","break","do","else","elseif","end","false","for","function","goto","if","in","local","nil","not","or","repeat","return","then","true","until","while"];
-var GLOBALS = ["print","wait","spawn","delay","task","game","workspace","Players","ReplicatedStorage","RunService","HttpService","Lighting","Instance","newSignal","Vector3","Color3","UDim2","UDim","loadstring","getgenv","getexecutorname","identifyexecutor","getfpscap","setfpscap","StarterGui","Debris","TweenService","TextChatService","_G","pairs","ipairs","select","tostring","tonumber","type","next","rawset","rawget","setmetatable","getmetatable","pcall","xpcall","require","coroutine","string","table","math","os","io"];
+var GLOBALS = ["print","wait","spawn","delay","task","game","workspace","Players","ReplicatedStorage","RunService","HttpService","Lighting","Instance","newSignal","Vector3","Color3","CFrame","UDim2","UDim","SandboxSim","loadstring","getgenv","getexecutorname","identifyexecutor","getfpscap","setfpscap","getrawmetatable","hookmetamethod","hookfunction","clonefunction","newcclosure","iscclosure","checkcaller","printidentity","getnamecallmethod","setreadonly","isreadonly","setclipboard","getgc","getreg","getupvalues","getconstants","StarterGui","Debris","TweenService","TextChatService","_G","pairs","ipairs","select","tostring","tonumber","type","next","rawset","rawget","setmetatable","getmetatable","pcall","xpcall","require","coroutine","string","table","math","os","io"];
 function highlight(src) {
   var out = [], i = 0, n = src.length;
   function tok(cls, txt) { out.push('<span class="' + cls + '">' + esc(txt) + '</span>'); }
@@ -886,7 +1446,7 @@ function applyHighlight(ta) {
 }
 
 /* ============================================================
-   3. UI BINDINGS
+   4. UI BINDINGS
    ============================================================ */
 var consoleScreen = null;
 
@@ -936,6 +1496,35 @@ function loadProgress() {
   } catch (e) {}
 }
 
+function legacyCopy(text, done) {
+  var ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  var ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+  done(ok);
+}
+
+function bindCopy(btn, text) {
+  btn.addEventListener("click", function () {
+    function done(worked) {
+      if (btn._t) clearTimeout(btn._t);
+      var old = btn.textContent;
+      btn.textContent = worked ? "Copied!" : "Select manually";
+      btn._t = setTimeout(function () { btn.textContent = old; }, 1400);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { legacyCopy(text, done); });
+    } else {
+      legacyCopy(text, done);
+    }
+  });
+}
+
 function setupExamples() {
   document.querySelectorAll(".ex").forEach(function (ex) {
     var ta = ex.querySelector("textarea.code");
@@ -955,13 +1544,7 @@ function setupExamples() {
       runChunk(ta.value, out, status, false);
       ex._played = true; saveProgress();
     });
-    if (copy) copy.addEventListener("click", function () {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(ta.value).then(function () {
-          var old = copy.textContent; copy.textContent = "Copied!"; setTimeout(function () { copy.textContent = old; }, 1400);
-        });
-      }
-    });
+    if (copy) bindCopy(copy, ta.value);
   });
 }
 
@@ -975,7 +1558,7 @@ function setupConsole() {
     var code = pin.value;
     if (!code.trim()) return;
     consoleScreen.appendChild(el("div", "pw", esc(code.split("\n")[0])));
-    runChunk(code, consoleScreen, null, true);
+    runConsole(code);
     pin.value = "";
     pin.focus();
   }
@@ -985,10 +1568,9 @@ function setupConsole() {
   });
   clear.addEventListener("click", function () { consoleScreen.textContent = ""; pin.focus(); });
   reset.addEventListener("click", function () {
-    releaseAllThreads();
-    consoleScreen.textContent = "";
-    try { state = newState(); } catch (e) { consoleScreen.textContent = "reset failed: " + e.message; }
-    consoleScreen.textContent += "-- fresh sandbox ready.\n";
+    killAllRuns();
+    consoleState = null;
+    consoleScreen.textContent = "-- fresh sandbox ready.\n";
     pin.focus();
   });
 
@@ -1005,7 +1587,6 @@ document.addEventListener("DOMContentLoaded", function () {
   setupPanes();
   setupExamples();
   setupConsole();
-  try { state = newState(); } catch (e) { if (consoleScreen) consoleScreen.textContent = "boot failed: " + e.message; }
   loadProgress();
   document.querySelectorAll("textarea.code").forEach(function (ta) { applyHighlight(ta); });
   var first = document.querySelector(".chap");
@@ -1013,5 +1594,14 @@ document.addEventListener("DOMContentLoaded", function () {
   var lesson = document.querySelector(".lesson");
   if (lesson) lesson.classList.add("on");
 });
+
+/* exposed for testing (and handy in the browser console) */
+window.__LP__ = {
+  renderWorld: renderWorld,
+  pollWorld: pollWorld,
+  emitEvent: emitEvent,
+  ensureGview: ensureGview,
+  highlight: highlight,
+};
 })();</script>
 </body></html>
