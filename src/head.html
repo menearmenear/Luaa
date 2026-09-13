@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lua Playground — Learn Luau by building</title>
+<style>
+:root{
+  --bg:#0b0e14; --bg2:#11151f; --panel:#151a26; --panel2:#1a2030;
+  --line:#232a3b; --txt:#cdd6f4; --dim:#7a8599; --accent:#22d3ee;
+  --pink:#f472b6; --green:#22c55e; --orange:#fb923c; --red:#f87171; --purple:#a78bfa;
+  --mono:"Cascadia Mono","JetBrains Mono","Fira Code",ui-monospace,Consolas,monospace;
+  --sans:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:15px;line-height:1.6;overflow-x:hidden}
+a{color:var(--accent)}
+::selection{background:#164e63;color:#fff}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:50;background:rgba(11,14,24,.92);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:10px 16px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.5px;color:#fff;white-space:nowrap}
+.logo .cube{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#0ea5e9,#8b5cf6);
+  display:grid;place-items:center;font-size:15px;color:#fff;box-shadow:0 0 18px rgba(34,211,238,.4)}
+.logo small{display:block;font-weight:600;color:var(--dim);font-size:11px;letter-spacing:1px}
+.tabs{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.tab{border:0;background:transparent;color:var(--dim);font-family:var(--sans);font-size:13px;font-weight:700;
+  padding:7px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--txt);background:var(--panel)}
+.tab.on{color:#fff;background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 2px 12px rgba(34,211,238,.35)}
+
+/* ---------- layout ---------- */
+.wrap{display:grid;grid-template-columns:230px 1fr;gap:0;max-width:1500px;margin:0 auto}
+.side{background:var(--bg2);border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:51px;
+  height:calc(100vh - 51px);overflow-y:auto}
+.side h3{font-size:11px;letter-spacing:1.5px;color:var(--dim);text-transform:uppercase;margin:6px 6px 10px}
+.chap{display:block;width:100%;text-align:left;background:transparent;border:0;color:var(--dim);
+  font-size:13.5px;padding:8px 10px;border-radius:8px;cursor:pointer;border-left:3px solid transparent}
+.chap:hover{background:var(--panel);color:var(--txt)}
+.chap.on{background:linear-gradient(90deg,rgba(34,211,238,.12),transparent);color:var(--accent);border-left-color:var(--accent)}
+.chap .n{display:inline-block;min-width:20px;color:var(--purple);font-weight:800}
+.chap.done::after{content:"✓";color:var(--green);float:right;font-weight:800}
+.main{padding:22px 26px 60px;max-width:900px;min-width:0}
+
+/* ---------- lesson cards ---------- */
+.lesson{display:none;animation:fade .25s ease}
+.lesson.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.kicker{font-size:12px;font-weight:800;letter-spacing:2px;color:var(--pink);text-transform:uppercase;margin-bottom:4px}
+.lesson h1{font-size:26px;color:#fff;margin-bottom:8px}
+.lesson h2{font-size:19px;color:#fff;margin:26px 0 8px}
+.lesson p{margin:10px 0;color:var(--txt)}
+.lesson ul,.lesson ol{margin:8px 0 8px 22px}
+.lesson li{margin:5px 0}
+.lesson code{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;
+  font-family:var(--mono);font-size:13px;color:#e8f0ff}
+.lesson kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
+  padding:1px 6px;font-family:var(--mono);font-size:12px;color:var(--accent)}
+.lesson b{color:#fff}
+.lesson .em{background:linear-gradient(90deg,rgba(34,211,238,.1),transparent);border-left:3px solid var(--accent);
+  padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+.lesson .warn{background:linear-gradient(90deg,rgba(248,113,113,.1),transparent);border-left:3px solid var(--red);
+  padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+.lesson .good{background:linear-gradient(90deg,rgba(34,197,94,.1),transparent);border-left:3px solid var(--green);
+  padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+
+/* ---------- example runners ---------- */
+.ex{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:16px 0;overflow:hidden}
+.ex .bar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ex .bar .t{font-size:12px;color:var(--dim);font-family:var(--mono);flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ex .bar button{font-family:var(--sans);font-size:12px;font-weight:800;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;color:#fff}
+.run{background:linear-gradient(135deg,#059669,#0d9488)}
+.run:hover{filter:brightness(1.15)}
+.copy{background:#2b3347}
+.copy:hover{filter:brightness(1.15)}
+.out{background:#0a0d15;border-top:1px solid var(--line);padding:10px 12px;font-family:var(--mono);font-size:13px;
+  white-space:pre-wrap;word-break:break-word;min-height:20px;color:#c8f1d9;display:none}
+.out.show{display:block}
+.out.err{color:#fda4af}
+.codewrap{position:relative}
+.hl{position:absolute;inset:0;overflow:hidden;padding:12px;pointer-events:none;font-family:var(--mono);
+  font-size:13.5px;line-height:1.55;white-space:pre;color:#cbd5e1}
+textarea.code{position:relative;display:block;width:100%;min-height:120px;background:transparent;color:transparent;
+  caret-color:#fff;border:0;outline:0;resize:vertical;padding:12px;font-family:var(--mono);font-size:13.5px;
+  line-height:1.55;white-space:pre;overflow:auto;tab-size:2}
+textarea.code:focus{box-shadow:inset 0 0 0 2px rgba(34,211,238,.4)}
+.status{font-size:11px;color:var(--green);font-family:var(--mono);margin:6px 2px 0;display:none}
+.status.show{display:block}
+
+/* ---------- SandboxSim game view ---------- */
+.gview{display:none;position:relative;width:100%;max-width:480px;margin:12px 0 0;
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0f1410}
+.gview canvas{display:block;width:100%;height:auto;cursor:crosshair}
+.gview .ghud{position:absolute;inset:0;pointer-events:none}
+.gview .gbtn{position:absolute;border-radius:6px;border:1px solid rgba(255,255,255,.28);
+  font-family:var(--sans);font-weight:800;display:flex;align-items:center;justify-content:center;
+  text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.5);pointer-events:auto;cursor:pointer;
+  overflow:hidden;white-space:nowrap}
+.gview .gbtn:hover{filter:brightness(1.18)}
+
+/* syntax colors */
+.tk-kw{color:#c792ea;font-weight:600}
+.tk-str{color:#c3e88d}
+.tk-cm{color:#5c6773;font-style:italic}
+.tk-num{color:#f78c6c}
+.tk-fn{color:#82aaff}
+.tk-bool{color:#ff9d5c}
+.tk-gl{color:#ffcb6b}
+.tk-sym{color:#89ddff}
+
+/* ---------- console ---------- */
+.console{display:none}
+.console.on{display:grid;grid-template-columns:1fr;gap:10px}
+.conwin{background:#05070c;border:1px solid var(--line);border-radius:12px;overflow:hidden;height:46vh;display:flex;flex-direction:column}
+.conhead{display:flex;gap:8px;padding:8px 12px;background:var(--panel2);border-bottom:1px solid var(--line);align-items:center}
+.conhead .dot{width:10px;height:10px;border-radius:50%;background:#f87171}
+.conhead .dot.y{background:#fbbf24}
+.conhead .dot.g{background:#34d399}
+.conhead .t{font-family:var(--mono);color:var(--dim);margin-left:8px;font-size:12px}
+.conhead .spacer{flex:1}
+.conhead button{background:#2b3347;color:#fff;border:0;font-size:12px;font-weight:700;border-radius:6px;padding:5px 10px;cursor:pointer}
+.conhead button:hover{filter:brightness(1.2)}
+.conscreen{flex:1;overflow-y:auto;padding:12px;font-family:var(--mono);font-size:13px;line-height:1.6;color:#c8f1d9}
+.conscreen .pw::before{content:"luau > ";color:#7dd3fc;font-weight:700}
+.con{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:stretch}
+textarea.conin{background:#0d111c;border:1px solid var(--line);border-radius:10px;color:var(--txt);font-family:var(--mono);
+  font-size:13.5px;padding:12px;resize:vertical;min-height:96px;outline:0}
+textarea.conin:focus{border-color:var(--accent)}
+
+/* ---------- misc ---------- */
+.hr{border:0;border-top:1px solid var(--line);margin:22px 0}
+.cheat{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:10px 0}
+.cheat summary{padding:10px 14px;cursor:pointer;font-weight:700;color:#fff;list-style:none;display:flex;align-items:center;gap:8px}
+.cheat summary::before{content:"▸";color:var(--accent);transition:.15s}
+.cheat[open] summary::before{transform:rotate(90deg)}
+.cheat .body{padding:4px 14px 12px}
+.cheat table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--mono)}
+.cheat td,.cheat th{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.cheat th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.cheat td:first-child{color:var(--pink);white-space:nowrap}
+.footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;text-align:center}
+@media(max-width:760px){
+  .wrap{grid-template-columns:1fr}
+  .side{position:static;height:auto;display:flex;gap:6px;overflow-x:auto;padding:10px;border-right:0;border-bottom:1px solid var(--line)}
+  .side h3{display:none}
+  .chap{white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
+  .chap.on{border-bottom-color:var(--accent)}
+  .main{padding:16px 14px 50px}
+  .lesson h1{font-size:21px}
+  .topbar{flex-wrap:wrap}
+}
+</style>
+<script>

@@ -1,0 +1,718 @@
+<div class="wrap">
+<nav class="side">
+  <h3>Lessons</h3>
+  <button class="chap" data-target="welcome"><span class="n">1</span> Welcome</button>
+  <button class="chap" data-target="basics"><span class="n">2</span> Values &amp; Variables</button>
+  <button class="chap" data-target="strings"><span class="n">3</span> Strings &amp; Math</button>
+  <button class="chap" data-target="tables"><span class="n">4</span> Tables</button>
+  <button class="chap" data-target="control"><span class="n">5</span> Control Flow</button>
+  <button class="chap" data-target="functions"><span class="n">6</span> Functions</button>
+  <button class="chap" data-target="metatables"><span class="n">7</span> Metatables</button>
+  <button class="chap" data-target="async"><span class="n">8</span> Coroutines + Events</button>
+  <button class="chap" data-target="roblox"><span class="n">9</span> Roblox 101</button>
+  <button class="chap" data-target="gui"><span class="n">10</span> Project: GUI</button>
+  <button class="chap" data-target="keysystem"><span class="n">11</span> Project: Key-systems</button>
+  <button class="chap" data-target="obfuscation"><span class="n">12</span> Obfuscation</button>
+  <button class="chap" data-target="remotes"><span class="n">13</span> Remotes + anti-cheat</button>
+  <button class="chap" data-target="guilib"><span class="n">14</span> Project: GUI library</button>
+  <button class="chap" data-target="animesim"><span class="n">15</span> Anime Sim (runnable)</button>
+</nav>
+
+<div class="main">
+<div id="pane-learn">
+
+<!-- ================= LESSON 1 ================= -->
+<section class="lesson" id="welcome">
+  <div class="kicker">Lesson 1</div>
+  <h1>Welcome to the Lua Playground</h1>
+  <p>This page has a <b>real Lua interpreter running in your browser</b>, plus a small sandbox that fakes the Roblox runtime (<code>game</code>, <code>workspace</code>, <code>Players</code>, <code>Instance</code>, <code>Vector3</code>, <code>task</code>…). You edit the code boxes, hit <b>Run</b>, and see the output. You can safely experiment with anything here — firing remotes, building GUIs, spawning coroutines.</p>
+  <div class="em">Hit <b>Run</b> below. Then change the text and run it again. Breaking is how you learn.</div>
+  <div class="ex">
+    <div class="bar"><span class="t">hello.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- Comments start with -- and computers ignore them.
+print("Hello from Lua Playground!")
+
+-- You are learning Luau (Roblox's flavor of Lua 5.1).
+-- Everything here works in real Roblox scripts too.
+print("Change this text, then press Run again.")</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <p>Throughout the course you'll meet the ideas that power every Roblox script and almost every executor script you've seen in <code>downloads/luas</code>.</p>
+  <div class="warn"><b>Rule zero:</b> running someone else's code is running <b>someone else's computer</b> on your machine. On this page everything is sandboxed and safe — the real world is not. More on that in Lessons 11 and 12.</div>
+</section>
+
+<!-- ================= LESSON 2 ================= -->
+<section class="lesson" id="basics">
+  <div class="kicker">Lesson 2</div>
+  <h1>Values &amp; Variables</h1>
+  <p>Lua has <b>one container</b> for everything — the special value <code>nil</code> means "no value". <code>local</code> makes a variable; it only exists inside the block where it was made.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">values.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- 1. The basic value types
+print(10)          -- number
+print(10.5)        -- floats are just numbers too
+print("text")      -- string, wrapped in quotes
+print(true, false) -- booleans
+print(nil)         -- the "nothing" value
+
+-- 2. Variables hold values
+local player = "Ada"
+local hp = 100
+print(player, "has", hp, "hp")
+
+-- 3. Check the type of anything
+print(type(10), type("x"), type(true), type(nil))</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em"><code>print()</code> is your best debugging friend. Almost every executor script you'll read is one giant <code>print</code> pileup.</div>
+</section>
+
+<!-- ================= LESSON 3 ================= -->
+<section class="lesson" id="strings">
+  <div class="kicker">Lesson 3</div>
+  <h1>Strings &amp; Math</h1>
+  <p><code>..</code> glues strings together. Numbers just work with normal math symbols.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">strings.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- Strings make words; .. joins them
+local name = "Jordan"
+print("Hello, " .. name .. "!")
+
+-- numbers do math
+print(2 + 3, 10 - 4, 6 * 7, 8 / 2)
+print(10 % 3)     -- remainder
+print(2 ^ 5)      -- power
+
+-- the math library
+print(math.floor(3.7), math.ceil(3.2))
+print(math.random(1, 6))   -- random dice roll
+
+-- # gets the length of a string
+print(#"abcde")   -- 5</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+</section>
+
+<!-- ================= LESSON 4 ================= -->
+<section class="lesson" id="tables">
+  <div class="kicker">Lesson 4</div>
+  <h1>Tables — the only data structure</h1>
+  <p>One tool, infinite uses. Arrays (lists), dictionaries (key→value), objects — everything is a table. <b>Lua lists start at 1</b>, not 0.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">tables.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- a list
+local fruits = { "apple", "kiwi", "mango" }
+print(fruits[1], fruits[2], fruits[3])  -- start at 1!
+print("count:", #fruits)
+
+-- a dictionary
+local stats = { hp = 100, mp = 50, level = 7 }
+print(stats.hp, stats.mp, stats.level)
+
+-- loop over a list (ipairs keeps order)
+for i, f in ipairs(fruits) do
+  print(i, f)
+end
+
+-- loop over a dictionary (pairs, any order)
+for k, v in pairs(stats) do
+  print(k, "=", v)
+end
+
+-- tables can hold tables
+local inventory = {
+  { item = "knife", count = 1 },
+  { item = "bread", count = 6 },
+}
+print(inventory[2].item, "x", inventory[2].count)</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+</section><!-- ================= LESSON 5 ================= -->
+<section class="lesson" id="control">
+  <div class="kicker">Lesson 5</div>
+  <h1>Control Flow</h1>
+  <p>Lua's <code>if/elseif/else</code> and its three loops. <code>break</code> jumps out of a loop early.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">control.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- decide with if / elseif / else
+local money = 42
+if money >= 100 then
+  print("rich")
+elseif money >= 50 then
+  print("mid")
+else
+  print("broke")
+end
+
+-- 1. for loop (counting)
+for i = 1, 5 do
+  print("for", i)
+end
+
+-- 2. while loop (condition checked first)
+local n = 0
+while n < 3 do
+  n = n + 1
+  print("while", n)
+end
+
+-- 3. repeat loop (condition checked last)
+local g = 0
+repeat
+  g = g + 1
+until g >= 3
+print("repeat ended at", g)
+
+-- break jumps out early
+for i = 1, 10 do
+  if i == 4 then break end
+  print("i =", i)
+end</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">Big-script tip: real scripts are 90% loops + ifs. If you can read this lesson, you can read most of a script.</div>
+</section>
+
+<!-- ================= LESSON 6 ================= -->
+<section class="lesson" id="functions">
+  <div class="kicker">Lesson 6</div>
+  <h1>Functions</h1>
+  <p>Functions take inputs, do work, and return outputs. In Lua they're values — stored, passed around, and <b>remembered</b> (closures).</p>
+  <div class="ex">
+    <div class="bar"><span class="t">functions.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">local function add(a, b)
+  return a + b
+end
+print(add(3, 4))          -- 7
+
+-- ... means "all the extra arguments"
+local function sum(...)
+  local total = 0
+  for _, v in ipairs({ ... }) do
+    total = total + v
+  end
+  return total
+end
+print(sum(1, 2, 3, 4, 5)) -- 15
+
+-- closures: the inner function keeps 'count' alive
+local function makeCounter()
+  local count = 0
+  return function()
+    count = count + 1
+    return count
+  end
+end
+local c = makeCounter()
+print(c(), c(), c())      -- 1 2 3
+
+-- errors are caught with pcall
+local ok, err = pcall(function()
+  error("boom")
+end)
+print("ok?", ok, "| error text:", err)</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+</section>
+
+<!-- ================= LESSON 7 ================= -->
+<section class="lesson" id="metatables">
+  <div class="kicker">Lesson 7</div>
+  <h1>Metatables</h1>
+  <p>Metatables change how a table behaves: what operators do (<code>__add</code>), what a missing key returns (<code>__index</code>), how it prints (<code>__tostring</code>). This is how Roblox's <code>Vector3</code> lets you write <code>a + b</code>.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">metatables.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">local Vec3 = {}
+Vec3.__index = Vec3                 -- find missing keys here
+
+function Vec3:new(x, y, z)
+  return setmetatable({ x = x, y = y, z = z }, Vec3)
+end
+
+function Vec3:__add(o)
+  return Vec3:new(self.x + o.x, self.y + o.y, self.z + o.z)
+end
+
+function Vec3:__tostring()
+  return "(" .. self.x .. ", " .. self.y .. ", " .. self.z .. ")"
+end
+
+local a = Vec3:new(1, 0, 0)
+local b = Vec3:new(0, 2, 0)
+print(a + b)        -- __add fires
+
+-- __index runs when a key is missing
+local defaults = { hp = 100 }
+local monster = setmetatable({ name = "slime" }, { __index = defaults })
+print(monster.name, monster.hp)     -- hp comes from defaults</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+</section>
+
+<!-- ================= LESSON 8 ================= -->
+<section class="lesson" id="async">
+  <div class="kicker">Lesson 8</div>
+  <h1>Coroutines + Events</h1>
+  <p>Roblox is one big <b>event loop</b>. <code>task.wait()</code> pauses <i>just your function</i> (not everything), and events call you back when something happens.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">async.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- task.wait pauses this coroutine for real time
+print("t0")
+for i = 1, 3 do
+  task.wait(0.4)
+  print("tick", i)
+end
+print("done")
+
+print("--- now, two things at once ---")
+
+-- task.spawn runs code on its own coroutine
+task.spawn(function()
+  for i = 1, 3 do
+    print("spawned", i)
+    task.wait(0.3)
+  end
+end)
+
+for i = 1, 3 do
+  print("main  ", i)
+  task.wait(0.2)
+end
+print("main done")
+
+print("--- events: Connect + Fire ---")
+local hurt = newSignal()            -- like a RemoteEvent signal
+hurt:Connect(function(amount)
+  print("ouch! took", amount)
+end)
+hurt:Fire(12)
+hurt:Fire(5)</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">This sandbox runs everything as real coroutines — the timings above are actual seconds. That's exactly how <code>RunService.Heartbeat</code> drives speed/trackers in the scripts you found.</div>
+</section>
+
+<!-- ================= LESSON 9 ================= -->
+<section class="lesson" id="roblox">
+  <div class="kicker">Lesson 9</div>
+  <h1>Roblox 101</h1>
+  <p>Everything in Roblox hangs in one <b>tree</b> under <code>game</code>. <code>Instance.new</code> creates nodes, <code>Parent</code> attaches them, <code>FindFirstChild</code> finds them.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">roblox.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- the tree root and its services
+print(game, workspace, Players)
+
+-- create objects
+local part = Instance.new("Part")
+part.Size = Vector3.new(2, 1, 2)
+part.Position = Vector3.new(0, 5, 0)
+part.Parent = workspace            -- attach to the tree
+print("part:", part, "| parent:", part.Parent.Name)
+
+local folder = Instance.new("Folder")
+folder.Name = "MyStuff"
+folder.Parent = workspace
+print("found:", workspace:FindFirstChild("MyStuff"))
+
+-- the local player and their character
+local character = Players.LocalPlayer.Character
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+print("health:", humanoid.Health, "/", humanoid.MaxHealth)
+
+-- walk the whole tree
+for _, child in ipairs(workspace:GetDescendants()) do
+  if child:IsA("Part") then
+    child.Transparency = 0.5      -- semi transparent, why not
+  end
+end
+print("touched", #workspace:GetDescendants(), "descendants")</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+</section>
+
+<!-- ================= LESSON 10 ================= -->
+<section class="lesson" id="gui">
+  <div class="kicker">Lesson 10 · Project</div>
+  <h1>Project: a GUI window</h1>
+  <p>This is the anatomy of the window script like <code>bb68159e42ec2929.lua.txt</code> — a draggable, closable panel (CludeHub-style library). Real ones add shadow blur, tabs and drag handlers; this is the skeleton.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">gui.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">local gui = Instance.new("ScreenGui")
+gui.Name = "MyGui"
+gui.Parent = Players.LocalPlayer.PlayerGui
+
+local window = Instance.new("Frame")
+window.Name = "Window"
+window.Size = UDim2.new(0, 320, 0, 200)
+window.Position = UDim2.new(0, 40, 0, 40)
+window.BackgroundColor3 = Color3.new(0.10, 0.10, 0.14)
+window.BackgroundTransparency = 0.1
+window.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Text = "MyWindow"
+title.Size = UDim2.new(1, 0, 0, 26)
+title.BackgroundTransparency = 1
+title.Parent = window
+
+local close = Instance.new("TextButton")
+close.Text = "X"
+close.Size = UDim2.new(0, 32, 0, 26)
+close.Position = UDim2.new(1, -32, 0, 0)
+close.BackgroundTransparency = 1
+close.Parent = window
+
+-- connect the button to a handler
+close.Activated:Connect(function()
+  print("close clicked!")
+end)
+print("window built:", #window:GetDescendants(), "children")
+
+wait(0.1)
+close.Activated:Fire()   -- simulate a click before this coroutine ends</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+</section>
+
+<!-- ================= LESSON 11 ================= -->
+<section class="lesson" id="keysystem">
+  <div class="kicker">Lesson 11 · Project</div>
+  <h1>Project: key-systems, safely</h1>
+  <p>Files like <code>fc38f1b744e0a932.lua.txt</code> are <b>key-system loaders</b>. They all look alike:</p>
+  <p><code>loadstring(game:HttpGet("https://somewhere/script.lua"))()</code></p>
+  <p>It fetches text from a server, compiles it, and runs it. <b>That text is completely untrusted.</b> The pattern below is the same idea, but the code it loads is code <i>you</i> wrote, so it's safe.</p>
+  <div class="warn">Never run a <code>loadstring</code> you can't read line by line. Deobfuscate first, or assume it will keylog or exfiltrate from your main PC.</div>
+  <div class="ex">
+    <div class="bar"><span class="t">loader.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- STEP 1: get the script TEXT (network is blocked here, so fake it)
+local scriptText = [[
+print("pasted script is running...")
+local x = 6 * 7
+print("answer:", x)
+]]
+
+-- STEP 2: compile text -> function (this is loadstring)
+local compiled, err = loadstring(scriptText)
+if not compiled then
+  print("compile failed:", err)
+  return
+end
+
+-- STEP 3: run it
+compiled()
+
+-- Real loader discipline: verify what you're about to run
+local function checksum(s)
+  local n = 0
+  for i = 1, #s do n = n + string.byte(s, i) end
+  return n
+end
+print("checksum:", checksum(scriptText))</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="good">The fetch → compile → run pipeline is the <i>only</i> part of a key-system that matters. Servers, Discord webhooks, "authorization" — they're all theater wrapping this 3-line core.</div>
+</section>
+
+<!-- ================= LESSON 12 ================= -->
+<section class="lesson" id="obfuscation">
+  <div class="kicker">Lesson 12</div>
+  <h1>Obfuscation: why the scripts look insane</h1>
+  <p>Obfuscation turns readable code into soup so it's hard to edit, search, or attribute. The classics — which you literally saw:</p>
+  <div class="ex">
+    <div class="bar"><span class="t">obf.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- string tricks that hide plaintext
+print(("a"):rep(2))                    -- "aa"
+print(("ROBLOX"):byte(1))              -- 82
+print(string.char(72, 105))            -- "Hi"
+
+-- name mangling: build names at runtime so a
+-- plain-text search for "HttpGet" finds nothing
+local g = base and base or _G
+print(type(g["get" .. "genv"]))        -- function
+
+-- indirection: tables + closures instead of function calls
+local obf = {
+  get = function(tbl, key) return tbl[key] end,
+  run = function(fn) return fn() end,
+}
+local say = loadstring or load
+obf.run(function()
+  print("this ran through 3 layers of indirection")
+end)
+_ = function(...) return ... end       -- junk to confuse readers</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em"><b>How to actually read one:</b> use skills from Lessons 1→8. Find <code>loadstring</code>/<code>HttpGet</code> first (it's the funnel), trace what it calls, then cut the junk variables.</div>
+  <p style="margin-top:16px">That's the core course. Next: remotes + anti-cheat, a real GUI library, and an actual playable game you build yourself.</p>
+</section>
+
+<!-- ================= LESSON 13 ================= -->
+<section class="lesson" id="remotes">
+  <div class="kicker">Lesson 13</div>
+  <h1>RemoteEvents + a fake anti-cheat</h1>
+  <p>Every executor script funnels its actions through <b>RemoteEvents</b>: <code>FireServer</code> sends a request, the server validates it. Here the sandbox simulates the whole round-trip, and you'll see exactly why "spam the remote" scripts die instantly.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">remotes.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">-- every shop/teleport in a game is one of these
+local shop = Instance.new("RemoteEvent")
+shop.Name = "BuyItem"
+shop.Parent = game.ReplicatedStorage
+
+-- the fake "server" (in Roblox this lives in a Script)
+local purchases = {}
+local function serverOnFire(who, item)
+  table.insert(purchases, item)
+  if item == "cheat-sword" then
+    print("SERVER: denied", who.Name, "bought a cheat item")
+    return false
+  end
+  print("SERVER:", who.Name, "bought", item)
+  return true
+end
+shop.OnServerEvent:Connect(function(who, item)
+  serverOnFire(who, item)
+end)
+
+-- what YOUR script does (the client side)
+shop:FireServer("potion")
+shop:FireServer("sword")
+shop:FireServer("cheat-sword")        -- denied
+
+-- now spam the remote like a bad anti-cheat test:
+for i = 1, 3 do shop:FireServer("potion") end
+task.wait(0.05)   -- let the (async) server respond
+print("server processed", #purchases, "purchase requests")
+
+-- server -> client direction (notifications)
+local ux = Instance.new("RemoteEvent")
+ux.Name = "ShowMessage"
+ux.Parent = game.ReplicatedStorage
+ux.OnClientEvent:Connect(function(text)
+  print("SERVER SAYS:", text)
+end)
+ux:FireClient(game.Players.LocalPlayer, "Welcome back, hacker.")</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="warn">In real games the server decides <b>everything</b>. Your client can only ask. The remote you can see and fire is exactly what anti-cheats watch — spam <code>FireServer</code> and you get instant-banned, not free items.</div>
+</section>
+
+<!-- ================= LESSON 14 ================= -->
+<section class="lesson" id="guilib">
+  <div class="kicker">Lesson 14 · Project</div>
+  <h1>Project: a GUI library you can see</h1>
+  <p>This is the skeleton of the CludeHub-style window lib from <code>bb68159e42ec2929.lua.txt</code> — except this one <b>renders</b>. <code>SandboxSim</code> draws a clickable canvas under your output box, so the window you build from Lua becomes real buttons you can press.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">guilib.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">local lib = {}
+
+function lib.MakeWindow(opts)
+  local root = Instance.new("ScreenGui")
+  root.Name = opts.Name or "Window"
+  root.Parent = Players.LocalPlayer.PlayerGui
+
+  local win = Instance.new("Frame")
+  win.Name = "Main"
+  win.Size = UDim2.new(0, 260, 0, 140)
+  win.Position = UDim2.new(0, 30, 0, 30)
+  win.BackgroundColor3 = Color3.new(0.10, 0.10, 0.16)
+  win.BackgroundTransparency = 0.06
+  win.Parent = root
+
+  local title = Instance.new("TextLabel")
+  title.Text = opts.Title or "window"
+  title.BackgroundTransparency = 1
+  title.Parent = win
+
+  local body = Instance.new("Frame")
+  body.Name = "Body"
+  body.BackgroundTransparency = 1
+  body.Parent = win
+
+  local buttons = {}
+  function buttons.Add(label, onClick)
+    local b = Instance.new("TextButton")
+    b.Text = label
+    b.BackgroundColor3 = Color3.new(0.20, 0.45, 0.9)
+    b.Activated:Connect(onClick or function() end)
+    b.Parent = body
+  end
+
+  return { Root = root, Frame = win, Title = title, Buttons = buttons }
+end
+
+-- ---- build a window ----
+local w = lib.MakeWindow({ Title = "CludeHub", Name = "MyGui" })
+local function toggleFarm() print("[gui] autofarm ON") end
+local function noclip() print("[gui] noclip toggled") end
+w.Buttons.Add("AutoFarm", toggleFarm)
+w.Buttons.Add("Noclip", noclip)
+w.Buttons.Add("Close", function() print("[gui] closing") end)
+
+-- ---- render an identical, clickable copy into the sim ----
+SandboxSim.show()
+SandboxSim.setGui("win", {
+  text = "CludeHub  (" .. #w.Frame:GetDescendants() .. " instances live)",
+  x = 0.04, y = 0.30, w = 0.52, h = 0.40,
+  color = "#131a2e", textColor = "#dbe7ff",
+})
+SandboxSim.setGui("b1", { text = "AutoFarm", x = 0.06, y = 0.64, w = 0.22, h = 0.10, color = "#2563eb" })
+SandboxSim.setGui("b2", { text = "Noclip", x = 0.30, y = 0.64, w = 0.16, h = 0.10, color = "#7c3aed" })
+SandboxSim.on("gui", function(id)
+  if id == "b1" then toggleFarm()
+  elseif id == "b2" then noclip() end
+end)
+
+-- the same tree you inspected in Lesson 9
+print("window instance tree:")
+for _, d in ipairs(w.Frame:GetDescendants()) do
+  print("  " .. d:GetFullName())
+end</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">Seeing the connection <i>instances → rendered GUI</i> is the whole trick of reading GUI scripts: the tree you built in Roblox is everything a draggable window really is.</div>
+</section>
+
+<!-- ================= LESSON 15 ================= -->
+<section class="lesson" id="animesim">
+  <div class="kicker">Lesson 15 · Project</div>
+  <h1>Anime Sim — a whole game you build</h1>
+  <p>Click the canvas to walk around, click a red mob to fight it, buy stat upgrades from the HUD. The GUIs, the mob spawner, the coin picking, the damage math — all of it is <b>just the Lua you've learned</b>, running through <code>RunService.Heartbeat</code> exactly like a real game script.</p>
+  <div class="ex">
+    <div class="bar"><span class="t">animesim.lua</span><button class="run">▶ Run</button><button class="copy">Copy</button></div>
+    <div class="codewrap"><pre class="hl"></pre><textarea class="code" spellcheck="false">local sim = SandboxSim
+sim.show()
+sim.setPlayer(0, 0, 20)            -- spawn, facing north
+sim.setPlayerName("You")
+sim.setHealth(100, 100)
+
+local coins, damage, autoFarm = 5, 5, true
+local mode = "idle"                -- idle | walk | fight
+local wx, wz, target = 0, 0, nil
+
+local function hud()
+  sim.setGui("title", { text = "ANIME SIM", x = 0.02, y = 0.02, w = 0.36, h = 0.06, color = "rgba(0,0,0,0.35)", textColor = "#ffe082" })
+  sim.setGui("coins", { text = "$" .. coins, x = 0.66, y = 0.02, w = 0.32, h = 0.06, color = "#14261a", textColor = "#ffd54f" })
+  sim.setGui("stats", { text = "Dmg " .. damage, x = 0.66, y = 0.09, w = 0.15, h = 0.06, color = "#141c2e", textColor = "#b6c2ff" })
+  sim.setGui("spawn", { text = "mobs: " .. #sim.getMobs(), x = 0.82, y = 0.09, w = 0.16, h = 0.06, color = "#141c2e", textColor = "#e57373" })
+  sim.setGui("blade", { text = "Blade  $25  (+5 dmg)", x = 0.66, y = 0.17, w = 0.32, h = 0.09, color = "#263c8a", textColor = "#ffffff" })
+  sim.setGui("farm", { text = "AutoFarm: " .. (autoFarm and "ON" or "OFF"), x = 0.02, y = 0.92, w = 0.3, h = 0.07, color = autoFarm and "#0f3d2e" or "#3d2020", textColor = "#7CFC9A" })
+end
+hud()
+
+sim.on("click", function(x, z)
+  for _, m in ipairs(sim.getMobs()) do
+    if math.abs(m.x - x) < 1.1 and math.abs(m.z - z) < 1.1 then
+      target, mode = m, "fight"
+      return
+    end
+  end
+  wx, wz, mode = x, z, "walk"
+end)
+sim.on("gui", function(id)
+  if id == "blade" then
+    if coins >= 25 then
+      coins, damage = coins - 25, damage + 5
+      print("[shop] blade equipped! dmg now " .. damage)
+      hud()
+    else
+      print("[shop] need $25, you have $" .. coins)
+    end
+  elseif id == "farm" then
+    autoFarm = not autoFarm
+    hud()
+    print("[toggle] AutoFarm " .. (autoFarm and "ON" or "OFF"))
+  end
+end)
+
+-- the heartbeat IS the game loop
+RunService.Heartbeat:Connect(function(dt)
+  local px, pz = sim.getPlayer()
+  local speed = 5.5 * (dt or 0.016)
+
+  if autoFarm and not target then
+    local best, bd = nil, 1e9
+    for i, m in ipairs(sim.getMobs()) do
+      local d2 = (m.x - px) ^ 2 + (m.z - pz) ^ 2
+      if d2 < bd then bd, best = d2, m end
+    end
+    if best then target, mode = best, "fight" end
+  end
+
+  if mode == "walk" then
+    local dx, dz = wx - px, wz - pz
+    local d = math.sqrt(dx * dx + dz * dz)
+    if d < 0.15 then mode = "idle"
+    else sim.setPlayer(px + dx / d * speed, pz + dz / d * speed, math.deg(math.atan2(dx, -dz))) end
+  elseif mode == "fight" and target then
+    local dx, dz = target.x - px, target.z - pz
+    local d = math.sqrt(dx * dx + dz * dz)
+    sim.setPlayer(px, pz, math.deg(math.atan2(dx, -dz)))
+    if d > 1.4 then
+      sim.setPlayer(px + dx / d * speed, pz + dz / d * speed, math.deg(math.atan2(dx, -dz)))
+    else
+      target.hp = target.hp - damage
+      if target.hp <= 0 then
+        local kill = target
+        coins, target, mode = coins + 15, nil, "idle"
+        sim.addCoin(kill.x, kill.z)
+        print("[kill] +$15 -> $" .. coins)
+        for i, m in ipairs(sim.getMobs()) do if m == kill then sim.removeMob(i) break end end
+        hud()
+      end
+    end
+  end
+
+  for i = #sim.getCoins(), 1, -1 do
+    local c = sim.getCoins()[i]
+    if c and math.abs(c.x - px) < 0.8 and math.abs(c.z - pz) < 0.8 then
+      sim.removeCoin(i)
+      coins = coins + 10
+      hud()
+    end
+  end
+end)
+
+-- mob spawner
+task.spawn(function()
+  while true do
+    task.wait(1.4)
+    if #sim.getMobs() < 8 then
+      sim.addMob(math.random(-10, 10), math.random(-6, 6),
+        8 + math.min(20, math.floor(coins / 60) * 2), "#e57373")
+    end
+  end
+end)
+
+print("== ANIME SIM ==")
+print("Click the canvas to walk — click a red mob to fight it.")
+print("The stat boxes are GUIs you just built. Press Buy Blade.")
+hud()</textarea></div>
+    <div class="out"></div><div class="status"></div>
+  </div>
+  <div class="em">This is an "anime sim" in one screen: walk → kill → coins → shop → stronger. Every game in <code>downloads/luas</code> is that feedback loop surrounded by GUI. You just wrote the whole thing.</div>
+  <p style="margin-top:16px">Done? Open the <b>Console</b> tab and break it yourself — change <code>damage</code>, add a teleport button, spawn ten mobs. That's the course.</p>
+</section>
+
+</div>
+
+<div class="console on" id="pane-console">
+  <div class="conwin">
+    <div class="conhead">
+      <span class="dot"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="t">luau — sandboxed REPL</span>
+      <span class="spacer"></span>
+      <button id="console-reset">Reset</button>
+      <button id="console-clear">Clear</button>
+    </div>
+    <div class="conscreen" id="console-screen">-- press the hint chip, then Enter. Same sandbox as the lessons.</div>
+  </div>
+  <div class="con">
+    <textarea class="conin" id="console-in" spellcheck="false" placeholder="type Lua here…"></textarea>
+    <button class="tab on" id="console-run" data-tab="console">Run</button>
+  </div>
+  <div class="em" id="console-hint" style="cursor:pointer"><b>Hint chip</b> — click to load a time-loop example into the console.</div>
+</div>
+
+<div class="footer">Lua Playground · fengari (Lua 5.3) sandboxed in your browser · the Roblox API here is a teaching fake</div>
+</div>
+</div>
